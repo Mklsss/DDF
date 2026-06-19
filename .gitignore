@@ -1,0 +1,41 @@
+# Large, reproducible data and training artifacts
+dataset/
+FH/ckpt/
+FH/logs/
+FH/outputs/
+FH/code/data/
+FH/code/weights/
+FH/code/results/
+FH/code/fig/
+FH/code/logs/
+FH/code/swanlog/
+FH/*.tar.gz
+FH/code/*.tar.gz
+FH/code/*.zip
+FH/code/package_for_coauthor_clean/
+FH/code/FHinner/tnt_v1/data/*.npz
+FH/code/FHinner/tnt_v1/data/*.npy
+FH/code/FHinner/tnt_v1/model/*.npz
+FH/code/model/*.npz
+FH/code/FHinner/tnt_v1/weights/
+FH/code/FHinner/tnt_v1/predict_img/
+FH/code/FHinner/tnt_v1/id_rsa.pub
+
+dudotrans_autodl/results/
+dudotrans_autodl/export_check_gt/
+redcnn_autodl/save/
+redcnn_autodl/save_npz/
+redcnn_autodl/img/
+
+# Generated caches and local-editor metadata
+**/__pycache__/
+*.py[cod]
+**/.ipynb_checkpoints/
+**/.idea/
+.Trash-0/
+.sys/
+*.log
+
+# Notebook scratch files
+*.ipynb
+*.bak

@@ -1,0 +1,38 @@
+{
+  "seed": 2026,
+  "train_data": "FHinner/tnt_v1/data/train_meiaonew.npz",
+  "test_data": "FHinner/tnt_v1/data/test_meiaonew.npz",
+  "fbp_matrix": "model/A_new.npz",
+  "fp_index": "weights/index_fpnew.npy",
+  "fp_data": "weights/data_fpnew.npy",
+  "checkpoint_patterns": {
+    "ddf": [
+      "weights/ddf_S{S}.pth",
+      "weights/DDP+FTR_{S}.pth",
+      "weights/DDR+FTRPOS_{S}.pth"
+    ],
+    "cascade": [
+      "weights/cascade_S{S}.pth",
+      "weights/Cascade_{S}.pth"
+    ],
+    "sine_no_fusion": [
+      "weights/ddf_no_sine_fusion_S{S}.pth"
+    ],
+    "ct_conv_fusion": [
+      "weights/ddf_ct_conv_fusion_S{S}.pth"
+    ]
+  },
+  "nafnet": {
+    "img_channel": 1,
+    "width": 16,
+    "middle_blk_num": 1,
+    "enc_blk_nums": [1, 1, 1, 1],
+    "dec_blk_nums": [1, 1, 1, 1]
+  },
+  "train": {
+    "epochs": 500,
+    "learning_rate": 0.0001,
+    "step_size": 10,
+    "gamma": 0.33
+  }
+}

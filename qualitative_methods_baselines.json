@@ -1,0 +1,38 @@
+[
+  {
+    "key": "ground_truth",
+    "title": "Ground Truth",
+    "source": "builtin"
+  },
+  {
+    "key": "sparse_fbp",
+    "title": "Sparse+FBP",
+    "source": "builtin"
+  },
+  {
+    "key": "redcnn",
+    "title": "RED-CNN",
+    "source": "image",
+    "image": "fig/qualitative_raw/sample_{sample_index:03d}/S{S}/redcnn.png"
+  },
+  {
+    "key": "dudotrans",
+    "title": "DuDoTrans",
+    "source": "image",
+    "image": "fig/qualitative_raw/sample_{sample_index:03d}/S{S}/dudotrans.png"
+  },
+  {
+    "key": "cascade",
+    "title": "Cascade",
+    "source": "builtin",
+    "method": "cascade",
+    "checkpoint": "weights/cascade_S{S}.pth"
+  },
+  {
+    "key": "ddf",
+    "title": "DDF",
+    "source": "builtin",
+    "method": "ddf",
+    "checkpoint": "weights/ddf_S{S}.pth"
+  }
+]

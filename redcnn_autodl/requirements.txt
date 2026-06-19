@@ -1,0 +1,7 @@
+numpy==1.26.4
+scipy
+pillow
+tqdm
+matplotlib
+scikit-image
+odl
