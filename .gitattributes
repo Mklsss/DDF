@@ -1,0 +1,5 @@
+FH/code/FHinner/tnt_v1/data/train_meiaonew.npz filter=lfs diff=lfs merge=lfs -text
+FH/code/model/A_new.npz filter=lfs diff=lfs merge=lfs -text
+FH/code/weights/index_fpnew.npy filter=lfs diff=lfs merge=lfs -text
+FH/code/weights/data_fpnew.npy filter=lfs diff=lfs merge=lfs -text
+dataset/test_meiaonew.npz filter=lfs diff=lfs merge=lfs -text

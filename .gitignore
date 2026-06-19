@@ -1,10 +1,15 @@
 # Large, reproducible data and training artifacts
-dataset/
+# UniversalExp required test set (stored with Git LFS); keep other datasets local.
+dataset/*
+!dataset/test_meiaonew.npz
 FH/ckpt/
 FH/logs/
 FH/outputs/
 FH/code/data/
-FH/code/weights/
+# UniversalExp required FP auxiliaries (stored with Git LFS); keep checkpoints local.
+FH/code/weights/*
+!FH/code/weights/index_fpnew.npy
+!FH/code/weights/data_fpnew.npy
 FH/code/results/
 FH/code/fig/
 FH/code/logs/
@@ -14,9 +19,11 @@ FH/code/*.tar.gz
 FH/code/*.zip
 FH/code/package_for_coauthor_clean/
 FH/code/FHinner/tnt_v1/data/*.npz
+!FH/code/FHinner/tnt_v1/data/train_meiaonew.npz
 FH/code/FHinner/tnt_v1/data/*.npy
 FH/code/FHinner/tnt_v1/model/*.npz
 FH/code/model/*.npz
+!FH/code/model/A_new.npz
 FH/code/FHinner/tnt_v1/weights/
 FH/code/FHinner/tnt_v1/predict_img/
 FH/code/FHinner/tnt_v1/id_rsa.pub
