@@ -1,0 +1,20 @@
+{
+  "seed": 2026,
+  "train_data": "/autodl-fs/data/FH/code/FHinner/tnt_v1/data/train_meiaonew.npz",
+  "test_data": "/autodl-fs/data/dataset/test_meiaonew.npz",
+  "fbp_matrix": "/autodl-fs/data/FH/code/model/A_new.npz",
+  "fp_index": "/autodl-fs/data/FH/code/weights/index_fpnew.npy",
+  "fp_data": "/autodl-fs/data/FH/code/weights/data_fpnew.npy",
+  "pcnn": {
+    "base_channels": 32
+  },
+  "redcnn": {
+    "channels": 96
+  },
+  "train": {
+    "epochs": 500,
+    "learning_rate": 0.0001,
+    "step_size": 10,
+    "gamma": 0.33
+  }
+}
