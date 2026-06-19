@@ -1,0 +1,8 @@
+# Runtime outputs are reproducible from the tracked code/configuration.
+checkpoints/
+logs/
+swanlog/
+
+# Keep only the approved DDF / S=12 / batch=3 smoke evidence in Git.
+results/*.json
+!results/smoke_ddf_S12_B3.json

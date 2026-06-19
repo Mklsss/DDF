@@ -1,0 +1,52 @@
+{
+  "config": "/autodl-fs/data/universalExp/configs/pcnn_default.json",
+  "sparse_factor": 12,
+  "batch_size": 3,
+  "architecture": "ddf",
+  "input_shape": [
+    3,
+    360,
+    357
+  ],
+  "target_shape": [
+    3,
+    1,
+    256,
+    256
+  ],
+  "pcnn_parameters": 2785953,
+  "models": {
+    "ddf": {
+      "prediction_shape": [
+        3,
+        1,
+        256,
+        256
+      ],
+      "loss": 4.0472846031188965,
+      "finite_loss": true,
+      "pcnn_has_finite_gradient": true,
+      "auxiliary_shapes": {
+        "sparse_fbp": [
+          3,
+          1,
+          256,
+          256
+        ],
+        "cascade": [
+          3,
+          1,
+          256,
+          256
+        ],
+        "fused_sinogram": [
+          3,
+          1,
+          360,
+          357
+        ]
+      },
+      "total_parameters": 7756516
+    }
+  }
+}
