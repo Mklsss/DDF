@@ -49,6 +49,9 @@ def main():
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--learning_rate", type=float, default=1e-4)
     parser.add_argument("--device", default="cuda:0" if torch.cuda.is_available() else "cpu")
+    parser.add_argument("--swanlab", action="store_true", help="log epoch metrics to SwanLab")
+    parser.add_argument("--swanlab_project", default="universalExp")
+    parser.add_argument("--swanlab_mode", choices=("cloud", "local", "offline"), default="cloud")
     args = parser.parse_args()
 
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
@@ -82,19 +85,44 @@ def main():
     train_loader = loader(config["train_data"], args.sparse_factor, args.batch_size, shuffle=True)
     best = -float("inf")
     checkpoint.parent.mkdir(parents=True, exist_ok=True)
-    for epoch in range(1, args.epochs + 1):
-        model.train()
-        for sino, target in tqdm(train_loader, desc=f"fair {args.backbone} {epoch}/{args.epochs}"):
-            optimizer.zero_grad(set_to_none=True)
-            prediction, _ = model(sino.to(device, dtype=torch.float32))
-            loss = F.mse_loss(prediction, target.to(device, dtype=torch.float32))
-            loss.backward()
-            optimizer.step()
-        psnr, ssim = evaluate_model(model, test_loader, device)
-        print(f"epoch={epoch} fair-{args.backbone} PSNR={psnr:.6f} SSIM={ssim:.6f}", flush=True)
-        if psnr > best:
-            best = psnr
-            torch.save(model.state_dict(), checkpoint)
+    run = None
+    if args.swanlab:
+        import swanlab
+        run = swanlab.init(
+            project=args.swanlab_project,
+            experiment_name=f"fair-{args.backbone}-S{args.sparse_factor}",
+            config={"backbone": args.backbone, "sparse_factor": args.sparse_factor,
+                    "protocol": "original-ddf-single-replacement-frozen-shared", **config},
+            mode=args.swanlab_mode,
+        )
+    try:
+        for epoch in range(1, args.epochs + 1):
+            model.train()
+            loss_sum = 0.0
+            for sino, target in tqdm(train_loader, desc=f"fair {args.backbone} {epoch}/{args.epochs}"):
+                optimizer.zero_grad(set_to_none=True)
+                prediction, _ = model(sino.to(device, dtype=torch.float32))
+                loss = F.mse_loss(prediction, target.to(device, dtype=torch.float32))
+                loss.backward()
+                optimizer.step()
+                loss_sum += loss.detach().item()
+            psnr, ssim = evaluate_model(model, test_loader, device)
+            metrics = {
+                "epoch": epoch,
+                "train/loss": loss_sum / len(train_loader),
+                "eval/psnr": psnr,
+                "eval/ssim": ssim,
+                "train/lr": optimizer.param_groups[0]["lr"],
+            }
+            print(f"epoch={epoch} fair-{args.backbone} PSNR={psnr:.6f} SSIM={ssim:.6f}", flush=True)
+            if run is not None:
+                run.log(metrics)
+            if psnr > best:
+                best = psnr
+                torch.save(model.state_dict(), checkpoint)
+    finally:
+        if run is not None:
+            run.finish()
 
 
 if __name__ == "__main__":
