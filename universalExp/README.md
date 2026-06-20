@@ -27,6 +27,10 @@ python projection_fair_experiment.py --backbone pcnn --mode train \
   --config configs/pcnn_default.json --sparse_factor 12 --epochs 100
 python projection_fair_experiment.py --backbone pswin --mode train \
   --config configs/pswin_default.json --sparse_factor 12 --epochs 100
+# I-CNN must first learn the original DDF image-domain mapping.  This avoids
+# injecting random RED-CNN outputs into the frozen FP/GMLP/CrossGating path.
+python projection_fair_experiment.py --backbone icnn --mode warmstart \
+  --config configs/icnn_default.json --sparse_factor 12 --batch_size 3
 python projection_fair_experiment.py --backbone icnn --mode train \
   --config configs/icnn_default.json --sparse_factor 12 --epochs 100
 python projection_fair_experiment.py --backbone irestor --mode train \
@@ -39,3 +43,9 @@ python projection_fair_experiment.py --backbone mixed --mode train \
 
 The resulting checkpoints are saved in `checkpoints/fair_single_domain/`. Do not
 mix their metrics with the legacy `checkpoints/ddf/` results.
+
+For I-CNN, `warmstart` saves a RED-CNN-only checkpoint under
+`checkpoints/warmstart/`.  It uses the original checkpoint to create the exact
+`original sin -> FBP -> NAFNet ct` teacher mapping.  Fair I-CNN training refuses
+to run without that checkpoint, since a random RED-CNN makes the frozen original
+feedback path invalid and produces meaningless low PSNR.

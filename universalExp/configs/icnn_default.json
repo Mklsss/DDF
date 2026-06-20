@@ -6,6 +6,11 @@
   "fp_index": "/autodl-fs/data/FH/code/weights/index_fpnew.npy",
   "fp_data": "/autodl-fs/data/FH/code/weights/data_fpnew.npy",
   "redcnn": {"channels": 96},
+  "warmstart": {
+    "epochs": 30,
+    "learning_rate": 0.0001,
+    "description": "Distil original DDF's restored-FBP -> NAFNet(ct) mapping into RED-CNN before fair DDF training."
+  },
   "train": {"epochs": 500, "learning_rate": 0.0001, "step_size": 10, "gamma": 0.33},
   "fair_protocol": {
     "original_checkpoint": "/autodl-fs/data/FH/code/weights/DDF_c12_best.pth",
