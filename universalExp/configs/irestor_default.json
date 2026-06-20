@@ -21,5 +21,6 @@
     "learning_rate": 0.0001,
     "step_size": 10,
     "gamma": 0.33
-  }
+  },
+  "fair_protocol": {"original_checkpoint": "/autodl-fs/data/FH/code/weights/DDF_c12_best.pth"}
 }

@@ -1,8 +1,8 @@
-"""Fair original-DDF protocol for single-backbone replacements.
+"""Fair original-DDF protocol for controlled backbone replacements.
 
-P-CNN/P-Swin replace only ``sin`` and I-CNN replaces only ``ct`` in the
-published S12 DDF model. Every untouched component is instantiated from the
-original training script and loaded from the same original checkpoint.
+P-CNN/P-Swin replace ``sin``; I-CNN/I-Restor replace ``ct``; Both-CNN/Mixed
+replace both. Every untouched component is instantiated from the original
+training script and loaded from the same original checkpoint.
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ def legacy_namespace(sparse_factor: int):
 
 
 class OriginalDDFWithReplacement(nn.Module):
-    """Original DDF with exactly one optional projection or image replacement."""
+    """Original DDF with optional projection and image replacements."""
 
     def __init__(
         self,
@@ -56,8 +56,6 @@ class OriginalDDFWithReplacement(nn.Module):
         image: nn.Module | None = None,
     ):
         super().__init__()
-        if projection is not None and image is not None:
-            raise ValueError("a fair run replaces either projection or image backbone, not both")
         namespace = legacy_namespace(int(sparse_factor))
         with _legacy_cwd():
             self.sin = projection or namespace["sin_angle"](
@@ -89,28 +87,33 @@ class OriginalDDFWithReplacement(nn.Module):
         return output, {"sinogram": sin1, "cascade": ct1}
 
 
-def load_original_weights(model: nn.Module, checkpoint: str | Path, *, replaced_prefix: str | None = None):
-    """Load all original weights except the one deliberately replaced module."""
+def load_original_weights(model: nn.Module, checkpoint: str | Path, *, replaced_prefixes=()):
+    """Load all original weights except deliberately replaced modules."""
+    if isinstance(replaced_prefixes, str):
+        replaced_prefixes = (replaced_prefixes,)
     state = torch.load(checkpoint, map_location="cpu")
     if isinstance(state, dict) and "model" in state:
         state = state["model"]
-    if replaced_prefix:
-        state = {key: value for key, value in state.items() if not key.startswith(replaced_prefix)}
+    state = {
+        key: value for key, value in state.items()
+        if not any(key.startswith(prefix) for prefix in replaced_prefixes)
+    }
     incompat = model.load_state_dict(state, strict=False)
     unexpected = list(incompat.unexpected_keys)
     missing = list(incompat.missing_keys)
     if unexpected:
         raise RuntimeError(f"unexpected original-checkpoint keys: {unexpected[:5]}")
-    if replaced_prefix is None:
-        allowed_missing = set()
-    else:
-        module_name = replaced_prefix.removesuffix(".")
-        allowed_missing = {f"{replaced_prefix}{key}" for key in getattr(model, module_name).state_dict()}
+    allowed_missing = set()
+    for prefix in replaced_prefixes:
+        module_name = prefix.removesuffix(".")
+        allowed_missing.update(f"{prefix}{key}" for key in getattr(model, module_name).state_dict())
     if set(missing) != allowed_missing:
         raise RuntimeError(f"checkpoint did not load every shared DDF weight; missing={missing[:5]}")
 
 
-def freeze_shared_ddf(model: OriginalDDFWithReplacement, train_prefix: str):
-    """Train only the deliberately substituted backbone in the controlled stage."""
+def freeze_shared_ddf(model: OriginalDDFWithReplacement, train_prefixes):
+    """Train only deliberately substituted backbone(s) in the controlled stage."""
+    if isinstance(train_prefixes, str):
+        train_prefixes = (train_prefixes,)
     for name, parameter in model.named_parameters():
-        parameter.requires_grad = name.startswith(train_prefix)
+        parameter.requires_grad = name.startswith(tuple(train_prefixes))

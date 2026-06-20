@@ -1,4 +1,4 @@
-"""Train/evaluate a fair P-CNN, P-Swin, or I-CNN single-domain replacement."""
+"""Train/evaluate a fair DDF backbone replacement against original DDF."""
 
 import argparse
 import json
@@ -20,15 +20,32 @@ from experiments.ddf_experiment_lib import SinogramCTDataset, evaluate_model, se
 from pcnn import ResUNetSino
 from pswin import SwinIRSino
 from icnn import REDCNN
+from FHinner.tnt_v1.restormor import Restormer
 
 
-def build_replacement(name, config):
+def build_restormer(config):
+    args = config["restormer"]
+    return Restormer(
+        inp_channels=args["inp_channels"], out_channels=args["out_channels"], dim=args["dim"],
+        num_blocks=args["num_blocks"], num_refinement_blocks=args["num_refinement_blocks"],
+        heads=args["heads"], ffn_expansion_factor=args["ffn_expansion_factor"],
+        bias=args["bias"], LayerNorm_type=args["layer_norm_type"],
+    )
+
+
+def build_replacements(name, config):
     if name == "pcnn":
-        return ResUNetSino(config["pcnn"]["base_channels"])
+        return ResUNetSino(config["pcnn"]["base_channels"]), None
     if name == "pswin":
-        return SwinIRSino(config["pswin"])
+        return SwinIRSino(config["pswin"]), None
     if name == "icnn":
-        return REDCNN(config["redcnn"]["channels"])
+        return None, REDCNN(config["redcnn"]["channels"])
+    if name == "irestor":
+        return None, build_restormer(config)
+    if name == "bothcnn":
+        return ResUNetSino(config["pcnn"]["base_channels"]), REDCNN(config["redcnn"]["channels"])
+    if name == "mixed":
+        return SwinIRSino(config["pswin"]), REDCNN(config["redcnn"]["channels"])
     raise ValueError(name)
 
 
@@ -39,12 +56,12 @@ def loader(path, sparse_factor, batch_size, shuffle=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--backbone", required=True, choices=("original", "pcnn", "pswin", "icnn"))
+    parser.add_argument("--backbone", required=True, choices=("original", "pcnn", "pswin", "icnn", "irestor", "bothcnn", "mixed"))
     parser.add_argument("--mode", required=True, choices=("train", "test"))
-    parser.add_argument("--config", required=True, help="pcnn_default.json, pswin_default.json, or icnn_default.json")
+    parser.add_argument("--config", required=True, help="a matching config from configs/")
     parser.add_argument("--sparse_factor", type=int, default=12)
     parser.add_argument("--original_checkpoint", default="/autodl-fs/data/FH/code/weights/DDF_c12_best.pth")
-    parser.add_argument("--checkpoint", default=None, help="Replacement checkpoint; defaults under checkpoints/fair_single_domain")
+    parser.add_argument("--checkpoint", default=None, help="Replacement checkpoint; defaults under checkpoints/fair_protocol")
     parser.add_argument("--batch_size", type=int, default=3)
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--learning_rate", type=float, default=1e-4)
@@ -57,15 +74,13 @@ def main():
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
     set_seed(int(config["seed"]))
     device = torch.device(args.device)
-    replacement = None if args.backbone == "original" else build_replacement(args.backbone, config)
-    is_image_replacement = args.backbone == "icnn"
+    projection, image = (None, None) if args.backbone == "original" else build_replacements(args.backbone, config)
     model = OriginalDDFWithReplacement(
         args.sparse_factor,
-        image=replacement if is_image_replacement else None,
-        projection=None if is_image_replacement else replacement,
+        image=image, projection=projection,
     ).to(device)
-    replaced_prefix = None if args.backbone == "original" else ("ct." if is_image_replacement else "sin.")
-    load_original_weights(model, args.original_checkpoint, replaced_prefix=replaced_prefix)
+    replaced_prefixes = tuple(prefix for prefix, module in (("sin.", projection), ("ct.", image)) if module is not None)
+    load_original_weights(model, args.original_checkpoint, replaced_prefixes=replaced_prefixes)
 
     test_loader = loader(config["test_data"], args.sparse_factor, args.batch_size)
     if args.backbone == "original":
@@ -73,14 +88,14 @@ def main():
         print(f"original DDF S={args.sparse_factor}: PSNR={psnr:.6f} SSIM={ssim:.6f}")
         return
 
-    checkpoint = Path(args.checkpoint) if args.checkpoint else THIS_DIR / "checkpoints" / "fair_single_domain" / f"{args.backbone}_S{args.sparse_factor}.pth"
+    checkpoint = Path(args.checkpoint) if args.checkpoint else THIS_DIR / "checkpoints" / "fair_protocol" / f"{args.backbone}_S{args.sparse_factor}.pth"
     if args.mode == "test":
         model.load_state_dict(torch.load(checkpoint, map_location=device), strict=True)
         psnr, ssim = evaluate_model(model, test_loader, device)
         print(f"fair {args.backbone} S={args.sparse_factor}: PSNR={psnr:.6f} SSIM={ssim:.6f}")
         return
 
-    freeze_shared_ddf(model, replaced_prefix)
+    freeze_shared_ddf(model, replaced_prefixes)
     optimizer = torch.optim.Adam((p for p in model.parameters() if p.requires_grad), lr=args.learning_rate)
     train_loader = loader(config["train_data"], args.sparse_factor, args.batch_size, shuffle=True)
     best = -float("inf")
