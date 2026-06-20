@@ -41,4 +41,7 @@ class REDCNN(nn.Module):
         output = self.tconv2(self.relu(output))
         output = self.tconv3(self.relu(output)) + residual_2
         output = self.tconv4(self.relu(output))
-        return self.relu(self.tconv5(self.relu(output)) + residual_1)
+        # DDF's original NAFNet ``ct`` output is signed.  A final ReLU would
+        # make RED-CNN incapable of representing that teacher and can leave it
+        # permanently dead at zero during warm-start distillation.
+        return self.tconv5(self.relu(output)) + residual_1

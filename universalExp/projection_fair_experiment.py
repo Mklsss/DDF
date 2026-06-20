@@ -81,6 +81,20 @@ def train_redcnn_warmstart(student, teacher, train_loader, *, device, epochs, le
     for parameter in teacher.parameters():
         parameter.requires_grad_(False)
     student.train()
+
+    # RED-CNN retains an FBP skip connection while the original NAFNet teacher
+    # has a substantially different signed output mean.  Aligning only the
+    # final bias gives the student a useful first prediction without encoding
+    # any target image into its weights.  It also makes an incorrect output
+    # activation obvious immediately rather than silently plateauing.
+    with torch.no_grad():
+        calibration_sino, _ = next(iter(train_loader))
+        calibration_sino = calibration_sino.to(device, dtype=torch.float32)
+        calibration_fbp = teacher.fbp(teacher.sin(calibration_sino)).permute(0, 3, 1, 2)
+        calibration_target = teacher.ct(calibration_fbp)
+        student.tconv5.bias.add_((calibration_target - student(calibration_fbp)).mean())
+        calibration_loss = F.mse_loss(student(calibration_fbp), calibration_target).item()
+    print(f"[setup] REDCNN output-bias calibrated; initial distill_mse={calibration_loss:.8f}", flush=True)
     optimizer = torch.optim.Adam(student.parameters(), lr=learning_rate)
     checkpoint.parent.mkdir(parents=True, exist_ok=True)
     best_loss = float("inf")

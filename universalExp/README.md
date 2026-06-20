@@ -49,3 +49,7 @@ For I-CNN, `warmstart` saves a RED-CNN-only checkpoint under
 `original sin -> FBP -> NAFNet ct` teacher mapping.  Fair I-CNN training refuses
 to run without that checkpoint, since a random RED-CNN makes the frozen original
 feedback path invalid and produces meaningless low PSNR.
+
+The RED-CNN output is intentionally linear: the original NAFNet `ct` teacher is
+signed, so applying a final ReLU would make the warm-start mathematically
+impossible.
