@@ -26,7 +26,7 @@ from experiments.ddf_experiment_lib import (
     resolve_path,
     set_seed,
 )
-from image_backbones import RedCNN
+from icnn import REDCNN
 from pswin import SwinIRSino
 
 
@@ -50,7 +50,7 @@ class DDFMixed(nn.Module):
         self.fp = ForwardProjectionLayer(
             resolve_path(config["fp_index"]), resolve_path(config["fp_data"])
         )
-        self.ct = RedCNN(config["redcnn"]["channels"])
+        self.ct = REDCNN(config["redcnn"]["channels"])
         self.sine_fusion = GMLPSineFusion()
         self.ct_fusion = CrossGatingBlock()
 
@@ -206,7 +206,7 @@ def main():
         )
     if args.mode == "train":
         print(f"P-Swin parameters: {parameter_count(SwinIRSino(config['pswin'])):,}")
-        print(f"RED-CNN parameters: {parameter_count(RedCNN(config['redcnn']['channels'])):,}")
+        print(f"RED-CNN parameters: {parameter_count(REDCNN(config['redcnn']['channels'])):,}")
         train(args.sparse_factor, config, args.batch_size, device, checkpoint, swanlab_run)
     if not checkpoint.exists():
         raise FileNotFoundError(f"checkpoint not found: {checkpoint}")

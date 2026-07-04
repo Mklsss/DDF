@@ -69,7 +69,7 @@ P-Swin 已实现为独立入口，正式路径同样保持完整 DDF：
 - 已通过 smoke：DDF、S=12、batch size 3；输入 `(3, 360, 357)`，输出 `(3, 1, 256, 256)`，loss `4.004617` 有限，P-Swin backbone 梯度有限。详见 `results/smoke_pswin_ddf_S12_B3.json`；该 loss 仅用于正确性验证，不构成性能结论。
 
 Mixed 固定为可复现的跨类型组合：`DDFMixed.sin` 使用 `SwinIRSino`，`DDFMixed.ct`
-使用原项目同构的 96-channel `RED-CNN`。完整 DDF 的 `FbpLayer`、
+使用与 I-CNN/Both-CNN 相同实现的 96-channel `RED-CNN`。完整 DDF 的 `FbpLayer`、
 `ForwardProjectionLayer`、`GMLPSineFusion` 和 `CrossGatingBlock` 均保留不变。
 正式配置为 `configs/mixed_default.json`，最佳 checkpoint 为
 `checkpoints/ddf/Mixed_P-Swin_REDCNN_S12.pth`。
