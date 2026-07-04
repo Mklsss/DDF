@@ -18,22 +18,26 @@ def main():
     parser.add_argument("--batch_size", type=int, default=3)
     parser.add_argument("--config", default=None)
     parser.add_argument("--device", default="cuda:0" if torch.cuda.is_available() else "cpu")
+    parser.add_argument("--amp", action="store_true", help="use CUDA automatic mixed precision")
     parser.add_argument("--output", default=str(THIS_DIR / "results" / "smoke_ddf_irestor_S12_B3.json"))
     args = parser.parse_args()
     config, config_path = load_config(args.config)
     set_seed(int(config["seed"]))
     device = torch.device(args.device)
+    use_amp = args.amp and device.type == "cuda"
     sinogram, target = next(iter(make_loader(config["train_data"], args.sparse_factor, args.batch_size)))
     model = DDFIRestor(args.sparse_factor, config).to(device).train()
-    prediction, auxiliary = model(sinogram.to(device=device, dtype=torch.float32))
-    loss = nn.functional.mse_loss(prediction, target.to(device=device, dtype=torch.float32))
-    loss.backward()
+    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
+    with torch.cuda.amp.autocast(enabled=use_amp):
+        prediction, auxiliary = model(sinogram.to(device=device, dtype=torch.float32))
+        loss = nn.functional.mse_loss(prediction, target.to(device=device, dtype=torch.float32))
+    scaler.scale(loss).backward()
     restormer_has_grad = any(
         parameter.grad is not None and torch.isfinite(parameter.grad).all() for parameter in model.ct.parameters()
     )
     report = {
         "config": str(config_path), "architecture": "ddf-I-Restor", "image_backbone": "Restormer",
-        "sparse_factor": args.sparse_factor, "batch_size": args.batch_size,
+        "sparse_factor": args.sparse_factor, "batch_size": args.batch_size, "amp": use_amp,
         "input_shape": list(sinogram.shape), "target_shape": list(target.shape),
         "prediction_shape": list(prediction.shape), "loss": float(loss.detach().cpu()),
         "finite_loss": bool(torch.isfinite(loss).item()),

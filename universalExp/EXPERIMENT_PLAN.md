@@ -208,10 +208,12 @@ python -u irestor_smoke_test.py \
   --sparse_factor 12 \
   --batch_size 3 \
   --device cuda:0 \
+  --amp \
   --output results/smoke_ddf_irestor_S12_B3.json
 ```
 
-smoke 通过后开始 500 epoch 的正式 DDF I-Restor 训练：
+smoke 通过后开始 500 epoch 的正式 DDF I-Restor 训练。I-Restor 在 RTX 4090 上使用 `batch_size=3`
+需要开启 `--amp`；代码会让 Restormer/融合模块使用 AMP，同时保持 FBP/FP 稀疏算子为 FP32。
 
 ```bash
 python -u irestor_experiment.py \
@@ -219,6 +221,7 @@ python -u irestor_experiment.py \
   --sparse_factor 12 \
   --batch_size 3 \
   --device cuda:0 \
+  --amp \
   --swanlab \
   --swanlab_project universalExp \
   --swanlab_mode cloud

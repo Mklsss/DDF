@@ -77,12 +77,15 @@ class DDFIRestor(nn.Module):
 
     def forward(self, sparse_sinogram):
         utr_sinogram = self.sin(sparse_sinogram)
-        sparse_fbp_nhwc = self.fbp(sparse_sinogram)
-        fbp1 = self.fbp(utr_sinogram).permute(0, 3, 1, 2)
+        with torch.cuda.amp.autocast(enabled=False):
+            sparse_fbp_nhwc = self.fbp(sparse_sinogram.float())
+            fbp1 = self.fbp(utr_sinogram.float()).permute(0, 3, 1, 2)
         ct_nd = self.ct(fbp1)
-        feedback_sinogram = self.fp(ct_nd).unsqueeze(1)
+        with torch.cuda.amp.autocast(enabled=False):
+            feedback_sinogram = self.fp(ct_nd.float()).unsqueeze(1)
         fused_sinogram = self.sine_fusion(feedback_sinogram, utr_sinogram.unsqueeze(1))
-        fbp2 = self.fbp(fused_sinogram.squeeze(1)).permute(0, 3, 1, 2)
+        with torch.cuda.amp.autocast(enabled=False):
+            fbp2 = self.fbp(fused_sinogram.squeeze(1).float()).permute(0, 3, 1, 2)
         ct_pre, _ = self.ct_fusion(ct_nd, fbp2)
         return ct_pre, {
             "sparse_fbp": sparse_fbp_nhwc.permute(0, 3, 1, 2),
@@ -123,10 +126,12 @@ def evaluate(sparse_factor, config, checkpoint, batch_size, device):
     return evaluate_model(model, loader, device)
 
 
-def train(sparse_factor, config, batch_size, device, checkpoint, swanlab_run=None):
+def train(sparse_factor, config, batch_size, device, checkpoint, swanlab_run=None, amp=False):
     print(f"[setup] building DDF I-Restor model on {device}", flush=True)
     model = DDFIRestor(sparse_factor, config).to(device)
     freeze_projection_layers(model)
+    use_amp = amp and device.type == "cuda"
+    scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
     optimizer = torch.optim.Adam(
         (parameter for parameter in model.parameters() if parameter.requires_grad),
         lr=config["train"]["learning_rate"],
@@ -147,12 +152,14 @@ def train(sparse_factor, config, batch_size, device, checkpoint, swanlab_run=Non
         progress = tqdm(train_loader, desc=f"ddf I-Restor S={sparse_factor} epoch {epoch + 1}/{config['train']['epochs']}", unit="batch", dynamic_ncols=True)
         for step, (sparse_sinogram, target_ct) in enumerate(progress, start=1):
             optimizer.zero_grad(set_to_none=True)
-            prediction, _ = model(sparse_sinogram.to(device=device, dtype=torch.float32))
-            loss = nn.functional.mse_loss(prediction, target_ct.to(device=device, dtype=torch.float32))
+            with torch.cuda.amp.autocast(enabled=use_amp):
+                prediction, _ = model(sparse_sinogram.to(device=device, dtype=torch.float32))
+                loss = nn.functional.mse_loss(prediction, target_ct.to(device=device, dtype=torch.float32))
             if not torch.isfinite(loss):
                 raise RuntimeError(f"non-finite loss at epoch {epoch + 1}: {loss.item()}")
-            loss.backward()
-            optimizer.step()
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
             running_loss += loss.detach().item()
             progress.set_postfix(loss=f"{running_loss / step:.6f}", lr=f"{optimizer.param_groups[0]['lr']:.2e}")
         scheduler.step()
@@ -181,6 +188,7 @@ def main():
     parser.add_argument("--checkpoint", default=None)
     parser.add_argument("--batch_size", type=int, default=3)
     parser.add_argument("--device", default="cuda:0" if torch.cuda.is_available() else "cpu")
+    parser.add_argument("--amp", action="store_true", help="use CUDA automatic mixed precision during training")
     parser.add_argument("--swanlab", action="store_true")
     parser.add_argument("--swanlab_project", default="universalExp")
     parser.add_argument("--swanlab_mode", choices=("cloud", "local", "offline"), default="cloud")
@@ -201,7 +209,7 @@ def main():
         )
     if args.mode == "train":
         print(f"Restormer parameters: {parameter_count(build_restormer(config)):,}")
-        train(args.sparse_factor, config, args.batch_size, torch.device(args.device), checkpoint, swanlab_run)
+        train(args.sparse_factor, config, args.batch_size, torch.device(args.device), checkpoint, swanlab_run, amp=args.amp)
     if not checkpoint.exists():
         raise FileNotFoundError(f"checkpoint not found: {checkpoint}")
     psnr, ssim = evaluate(args.sparse_factor, config, checkpoint, args.batch_size, torch.device(args.device))
