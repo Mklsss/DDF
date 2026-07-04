@@ -207,21 +207,22 @@ cd /autodl-fs/data/universalExp
 python -u irestor_smoke_test.py \
   --sparse_factor 12 \
   --batch_size 3 \
+  --micro_batch_size 1 \
   --device cuda:0 \
-  --amp \
   --output results/smoke_ddf_irestor_S12_B3.json
 ```
 
-smoke 通过后开始 500 epoch 的正式 DDF I-Restor 训练。I-Restor 在 RTX 4090 上使用 `batch_size=3`
-需要开启 `--amp`；代码会让 Restormer/融合模块使用 AMP，同时保持 FBP/FP 稀疏算子为 FP32。
+smoke 通过后开始 500 epoch 的正式 DDF I-Restor 训练。I-Restor 在 RTX 4090 上使用完整
+`batch_size=3` 反向传播会显存不足，因此使用 FP32 micro-batch 梯度累积：DataLoader 仍为
+`batch_size=3`，每 3 个样本只做一次 optimizer update，以保持有效 batch size 与正式协议一致。
 
 ```bash
 python -u irestor_experiment.py \
   --mode train \
   --sparse_factor 12 \
   --batch_size 3 \
+  --micro_batch_size 1 \
   --device cuda:0 \
-  --amp \
   --swanlab \
   --swanlab_project universalExp \
   --swanlab_mode cloud

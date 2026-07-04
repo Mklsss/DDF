@@ -126,11 +126,16 @@ def evaluate(sparse_factor, config, checkpoint, batch_size, device):
     return evaluate_model(model, loader, device)
 
 
-def train(sparse_factor, config, batch_size, device, checkpoint, swanlab_run=None, amp=False):
+def train(sparse_factor, config, batch_size, device, checkpoint, swanlab_run=None, amp=False, micro_batch_size=None):
     print(f"[setup] building DDF I-Restor model on {device}", flush=True)
     model = DDFIRestor(sparse_factor, config).to(device)
     freeze_projection_layers(model)
     use_amp = amp and device.type == "cuda"
+    micro_batch_size = micro_batch_size or batch_size
+    if micro_batch_size <= 0:
+        raise ValueError("--micro_batch_size must be positive")
+    if micro_batch_size > batch_size:
+        raise ValueError("--micro_batch_size must be no larger than --batch_size")
     scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
     optimizer = torch.optim.Adam(
         (parameter for parameter in model.parameters() if parameter.requires_grad),
@@ -152,15 +157,22 @@ def train(sparse_factor, config, batch_size, device, checkpoint, swanlab_run=Non
         progress = tqdm(train_loader, desc=f"ddf I-Restor S={sparse_factor} epoch {epoch + 1}/{config['train']['epochs']}", unit="batch", dynamic_ncols=True)
         for step, (sparse_sinogram, target_ct) in enumerate(progress, start=1):
             optimizer.zero_grad(set_to_none=True)
-            with torch.cuda.amp.autocast(enabled=use_amp):
-                prediction, _ = model(sparse_sinogram.to(device=device, dtype=torch.float32))
-                loss = nn.functional.mse_loss(prediction, target_ct.to(device=device, dtype=torch.float32))
-            if not torch.isfinite(loss):
-                raise RuntimeError(f"non-finite loss at epoch {epoch + 1}: {loss.item()}")
-            scaler.scale(loss).backward()
+            batch_loss = 0.0
+            for start in range(0, sparse_sinogram.shape[0], micro_batch_size):
+                end = min(start + micro_batch_size, sparse_sinogram.shape[0])
+                weight = (end - start) / sparse_sinogram.shape[0]
+                with torch.cuda.amp.autocast(enabled=use_amp):
+                    prediction, _ = model(sparse_sinogram[start:end].to(device=device, dtype=torch.float32))
+                    loss = nn.functional.mse_loss(
+                        prediction, target_ct[start:end].to(device=device, dtype=torch.float32)
+                    )
+                if not torch.isfinite(loss):
+                    raise RuntimeError(f"non-finite loss at epoch {epoch + 1}: {loss.item()}")
+                scaler.scale(loss * weight).backward()
+                batch_loss += loss.detach().item() * weight
             scaler.step(optimizer)
             scaler.update()
-            running_loss += loss.detach().item()
+            running_loss += batch_loss
             progress.set_postfix(loss=f"{running_loss / step:.6f}", lr=f"{optimizer.param_groups[0]['lr']:.2e}")
         scheduler.step()
         psnr, ssim = evaluate_model(model, test_loader, device)
@@ -187,6 +199,7 @@ def main():
     parser.add_argument("--config", default=None)
     parser.add_argument("--checkpoint", default=None)
     parser.add_argument("--batch_size", type=int, default=3)
+    parser.add_argument("--micro_batch_size", type=int, default=None, help="split each optimizer batch for gradient accumulation")
     parser.add_argument("--device", default="cuda:0" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--amp", action="store_true", help="use CUDA automatic mixed precision during training")
     parser.add_argument("--swanlab", action="store_true")
@@ -209,7 +222,10 @@ def main():
         )
     if args.mode == "train":
         print(f"Restormer parameters: {parameter_count(build_restormer(config)):,}")
-        train(args.sparse_factor, config, args.batch_size, torch.device(args.device), checkpoint, swanlab_run, amp=args.amp)
+        train(
+            args.sparse_factor, config, args.batch_size, torch.device(args.device), checkpoint,
+            swanlab_run, amp=args.amp, micro_batch_size=args.micro_batch_size,
+        )
     if not checkpoint.exists():
         raise FileNotFoundError(f"checkpoint not found: {checkpoint}")
     psnr, ssim = evaluate(args.sparse_factor, config, checkpoint, args.batch_size, torch.device(args.device))
