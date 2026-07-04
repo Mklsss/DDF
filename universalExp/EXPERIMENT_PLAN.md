@@ -19,9 +19,9 @@
 | 组别 | 投影域 `F_p` | 图像域 `F_i` | 目的 | 第一阶段 | 实现状态 | 正式结果 |
 |---|---|---|---|---|---|---|
 | Default | UTR / UTR+Angle | NAFNet | 原始 DDF 配置 | 是 | 待接入统一实验入口 | 待运行 |
-| P-CNN | ResUNet-sino | NAFNet | 仅替换投影域为 CNN | 是 | 已实现：`DDFPCNN` | 待训练 |
-| P-Swin | SwinIR-sino | NAFNet | 仅替换投影域为强 restoration backbone | 否 | 已实现，smoke 通过 | 待运行 |
-| I-CNN | UTR / UTR+Angle | RED-CNN | 仅替换图像域为 CNN | 是 | 已实现，待 smoke | 待运行 |
+| P-CNN | ResUNet-sino | NAFNet | 仅替换投影域为 CNN | 是 | 已实现，smoke 通过 | checkpoint 已生成，待测试登记 |
+| P-Swin | SwinIR-sino | NAFNet | 仅替换投影域为强 restoration backbone | 否 | 已实现，smoke 通过 | checkpoint 已生成，待测试登记 |
+| I-CNN | UTR / UTR+Angle | RED-CNN | 仅替换图像域为 CNN | 是 | 已实现，checkpoint 已生成 | 待测试登记 |
 | I-Restor | UTR / UTR+Angle | Restormer | 仅替换图像域为现代 restoration backbone | 否 | 已实现：`DDFIRestor` | 待运行 |
 | Both-CNN | ResUNet-sino | RED-CNN | 两个域均替换为 CNN | 是 | 已实现，待 smoke | 待运行 |
 | Mixed | SwinIR-sino | RED-CNN | 两个域均替换，比较跨类型组合 | 否 | 已实现，待 smoke | 待运行 |
@@ -30,13 +30,33 @@
 
 ## 3. 当前实现与验证状态
 
-当前已实现 P-CNN、P-Swin、I-CNN、I-Restor 与 Both-CNN 变体，且正式目标均为完整 DDF 路径：
+当前已实现 P-CNN、P-Swin、I-CNN、I-Restor 与 Both-CNN 变体，且正式目标均为完整 DDF 路径。当前本机已存在以下完整 DDF、S=12 checkpoint：
+
+- `checkpoints/ddf/P-CNN_NAFNet_S12.pth`
+- `checkpoints/ddf/P-Swin_NAFNet_S12.pth`
+- `checkpoints/ddf/I-CNN_REDCNN_S12.pth`
+
+上述三组仍需确认最终测试指标并登记到第 10 节结果表。剩余待训练组别为 `I-Restor`、`Both-CNN`、`Mixed`；若纳入原始 baseline，则还包括 `Default`。
+
+### 3.1 Backbone 替换关系
+
+| 组别 | 投影域 `F_p` | 图像域 `F_i` | 替换说明 |
+|---|---|---|---|
+| Default | UTR / UTR+Angle | NAFNet | 原始 DDF，不替换 |
+| P-CNN | ResUNet-sino | NAFNet | 只把投影域替换为 ResUNet-sino |
+| P-Swin | SwinIR-sino | NAFNet | 只把投影域替换为 SwinIR-sino |
+| I-CNN | UTR / UTR+Angle | RED-CNN | 只把图像域替换为 RED-CNN |
+| I-Restor | UTR / UTR+Angle | Restormer | 只把图像域替换为 Restormer |
+| Both-CNN | ResUNet-sino | RED-CNN | 投影域换 ResUNet-sino，图像域换 RED-CNN |
+| Mixed | SwinIR-sino | RED-CNN | 投影域换 SwinIR-sino，图像域换 RED-CNN |
+
+### 3.2 已实现模型说明
 
 - `DDFPCNN.sin`：`ResUNetSino`，以残差 U-Net 修复插值后的 sinogram，替换原 DDF 的投影域 backbone。
 - `DDFPCNN.ct`：原 DDF 的 NAFNet，配置为 `width=16`、`middle_blk_num=1`、四级 encoder/decoder。
 - 保留：`FbpLayer`、`ForwardProjectionLayer`、`GMLPSineFusion`、`CrossGatingBlock`。
 - 已通过 smoke：DDF、S=12、batch size 3；输入 `(3, 360, 357)`，输出 `(3, 1, 256, 256)`，loss 与 P-CNN 梯度均为有限值。详见 `results/smoke_ddf_S12_B3.json`。
-- 尚未完成任何正式 500 epoch 训练；smoke 中的 loss 仅用于正确性验证，不是模型性能结论。
+- 本机已有正式 checkpoint：`checkpoints/ddf/P-CNN_NAFNet_S12.pth`；待登记最终测试指标。
 
 I-Restor 保留原 DDF 的 `sin_angle`（UTR / UTR+Angle）、`FbpLayer`、`ForwardProjectionLayer`、`GMLPSineFusion` 和 `CrossGatingBlock`，仅将图像域 `ct` 从 NAFNet 替换为 Restormer。Restormer 的正式配置在 `configs/irestor_default.json`：单通道输入/输出、`dim=24`、blocks `[4,6,6,8]`。
 
@@ -306,9 +326,9 @@ python -u mixed_experiment.py \
 | 组别 | 实现版本 / checkpoint | 训练轮数 | PSNR | SSIM | SwanLab run | 状态 |
 |---|---|---:|---:|---:|---|---|
 | Default | — | — | — | — | — | 待实现 / 待运行 |
-| P-CNN | `checkpoints/ddf/P-CNN_NAFNet_S12.pth` | — | — | — | — | smoke 通过，待训练 |
-| P-Swin | `checkpoints/ddf/P-Swin_NAFNet_S12.pth` | — | — | — | — | smoke 通过，待训练 |
-| I-CNN | `checkpoints/ddf/I-CNN_REDCNN_S12.pth` | — | — | — | — | 已实现，待 smoke / 训练 |
+| P-CNN | `checkpoints/ddf/P-CNN_NAFNet_S12.pth` | — | — | — | — | checkpoint 已生成，待测试登记 |
+| P-Swin | `checkpoints/ddf/P-Swin_NAFNet_S12.pth` | — | — | — | — | checkpoint 已生成，待测试登记 |
+| I-CNN | `checkpoints/ddf/I-CNN_REDCNN_S12.pth` | — | — | — | — | checkpoint 已生成，待测试登记 |
 | I-Restor | `checkpoints/ddf/I-Restor_Restormer_S12.pth` | — | — | — | — | 已实现，待 smoke / 训练 |
 | Both-CNN | `checkpoints/ddf/Both-CNN_REDCNN_S12.pth` | — | — | — | — | 已实现，待 smoke / 训练 |
 | Mixed | `checkpoints/ddf/Mixed_P-Swin_REDCNN_S12.pth` | — | — | — | — | 已实现，待 smoke / 训练 |
