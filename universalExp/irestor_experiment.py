@@ -8,6 +8,7 @@ fusion remain in the path exactly as in the default DDF implementation.
 import argparse
 import csv
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -82,7 +83,7 @@ class DDFIRestor(nn.Module):
             fbp1 = self.fbp(utr_sinogram.float()).permute(0, 3, 1, 2)
         ct_nd = self.ct(fbp1)
         with torch.cuda.amp.autocast(enabled=False):
-            feedback_sinogram = self.fp(ct_nd.float()).unsqueeze(1)
+            feedback_sinogram = self.fp(ct_nd.detach().clamp(0.0, 1.0).float()).unsqueeze(1)
         fused_sinogram = self.sine_fusion(feedback_sinogram, utr_sinogram.unsqueeze(1))
         with torch.cuda.amp.autocast(enabled=False):
             fbp2 = self.fbp(fused_sinogram.squeeze(1).float()).permute(0, 3, 1, 2)
@@ -126,7 +127,10 @@ def evaluate(sparse_factor, config, checkpoint, batch_size, device):
     return evaluate_model(model, loader, device)
 
 
-def train(sparse_factor, config, batch_size, device, checkpoint, swanlab_run=None, amp=False, micro_batch_size=None):
+def train(
+    sparse_factor, config, batch_size, device, checkpoint, swanlab_run=None,
+    amp=False, micro_batch_size=None, learning_rate=None, max_grad_norm=1.0,
+):
     print(f"[setup] building DDF I-Restor model on {device}", flush=True)
     model = DDFIRestor(sparse_factor, config).to(device)
     freeze_projection_layers(model)
@@ -139,7 +143,7 @@ def train(sparse_factor, config, batch_size, device, checkpoint, swanlab_run=Non
     scaler = torch.cuda.amp.GradScaler(enabled=use_amp)
     optimizer = torch.optim.Adam(
         (parameter for parameter in model.parameters() if parameter.requires_grad),
-        lr=config["train"]["learning_rate"],
+        lr=learning_rate if learning_rate is not None else config["train"]["learning_rate"],
     )
     scheduler = torch.optim.lr_scheduler.StepLR(
         optimizer, step_size=config["train"]["step_size"], gamma=config["train"]["gamma"]
@@ -168,14 +172,38 @@ def train(sparse_factor, config, batch_size, device, checkpoint, swanlab_run=Non
                     )
                 if not torch.isfinite(loss):
                     raise RuntimeError(f"non-finite loss at epoch {epoch + 1}: {loss.item()}")
-                scaler.scale(loss * weight).backward()
+                scaled_loss = loss * weight
+                if use_amp:
+                    scaler.scale(scaled_loss).backward()
+                else:
+                    scaled_loss.backward()
                 batch_loss += loss.detach().item() * weight
-            scaler.step(optimizer)
-            scaler.update()
+            if max_grad_norm and max_grad_norm > 0:
+                if use_amp:
+                    scaler.unscale_(optimizer)
+                grad_norm = torch.nn.utils.clip_grad_norm_(
+                    [parameter for parameter in model.parameters() if parameter.requires_grad],
+                    max_grad_norm,
+                    error_if_nonfinite=True,
+                )
+                if not torch.isfinite(grad_norm):
+                    raise RuntimeError(f"non-finite gradient norm at epoch {epoch + 1}: {grad_norm}")
+            if use_amp:
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                optimizer.step()
+            for name, parameter in model.named_parameters():
+                if parameter.numel() and not torch.isfinite(parameter).all():
+                    raise RuntimeError(f"non-finite parameter after optimizer step at epoch {epoch + 1}: {name}")
             running_loss += batch_loss
             progress.set_postfix(loss=f"{running_loss / step:.6f}", lr=f"{optimizer.param_groups[0]['lr']:.2e}")
         scheduler.step()
         psnr, ssim = evaluate_model(model, test_loader, device)
+        if not (math.isfinite(psnr) and math.isfinite(ssim)):
+            raise RuntimeError(
+                f"non-finite evaluation metric at epoch {epoch + 1}: psnr={psnr}, ssim={ssim}"
+            )
         metrics = {
             "epoch": epoch + 1,
             "train/loss": running_loss / len(train_loader),
@@ -202,6 +230,8 @@ def main():
     parser.add_argument("--micro_batch_size", type=int, default=None, help="split each optimizer batch for gradient accumulation")
     parser.add_argument("--device", default="cuda:0" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--amp", action="store_true", help="use CUDA automatic mixed precision during training")
+    parser.add_argument("--learning_rate", type=float, default=None, help="override config train.learning_rate")
+    parser.add_argument("--max_grad_norm", type=float, default=1.0, help="clip trainable gradient norm; <=0 disables clipping")
     parser.add_argument("--swanlab", action="store_true")
     parser.add_argument("--swanlab_project", default="universalExp")
     parser.add_argument("--swanlab_mode", choices=("cloud", "local", "offline"), default="cloud")
@@ -225,6 +255,7 @@ def main():
         train(
             args.sparse_factor, config, args.batch_size, torch.device(args.device), checkpoint,
             swanlab_run, amp=args.amp, micro_batch_size=args.micro_batch_size,
+            learning_rate=args.learning_rate, max_grad_norm=args.max_grad_norm,
         )
     if not checkpoint.exists():
         raise FileNotFoundError(f"checkpoint not found: {checkpoint}")

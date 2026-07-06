@@ -70,6 +70,11 @@ def load_redcnn_warmstart(image, path, device):
     image.load_state_dict(state, strict=True)
 
 
+def checkpoint_state(payload):
+    """Accept both legacy raw state dicts and resumable fair-training checkpoints."""
+    return payload["model"] if isinstance(payload, dict) and "model" in payload else payload
+
+
 def train_redcnn_warmstart(student, teacher, train_loader, *, device, epochs, learning_rate, checkpoint):
     """Distil original DDF's exact FBP-to-NAFNet mapping into RED-CNN.
 
@@ -135,6 +140,12 @@ def main():
     parser.add_argument("--batch_size", type=int, default=3)
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--learning_rate", type=float, default=1e-4)
+    parser.add_argument("--resume_checkpoint", default=None, help="Resume model/optimizer/scheduler state from this checkpoint")
+    parser.add_argument("--resume_epoch", type=int, default=0, help="Epoch represented by a legacy raw-state checkpoint")
+    parser.add_argument("--lr_patience", type=int, default=15, help="Epochs without PSNR improvement before reducing LR")
+    parser.add_argument("--lr_factor", type=float, default=0.5, help="Multiplicative LR reduction after a plateau")
+    parser.add_argument("--min_learning_rate", type=float, default=1e-6)
+    parser.add_argument("--lr_threshold", type=float, default=0.01, help="Minimum absolute PSNR gain treated as an improvement")
     parser.add_argument("--warmstart_checkpoint", default=None, help="REDCNN-only distillation checkpoint")
     parser.add_argument("--warmstart_epochs", type=int, default=None)
     parser.add_argument("--warmstart_learning_rate", type=float, default=None)
@@ -184,7 +195,7 @@ def main():
 
     checkpoint = Path(args.checkpoint) if args.checkpoint else THIS_DIR / "checkpoints" / "fair_protocol" / f"{args.backbone}_S{args.sparse_factor}.pth"
     if args.mode == "test":
-        model.load_state_dict(torch.load(checkpoint, map_location=device), strict=True)
+        model.load_state_dict(checkpoint_state(torch.load(checkpoint, map_location=device)), strict=True)
         psnr, ssim = evaluate_model(model, test_loader, device)
         print(f"fair {args.backbone} S={args.sparse_factor}: PSNR={psnr:.6f} SSIM={ssim:.6f}")
         return
@@ -202,9 +213,37 @@ def main():
 
     freeze_shared_ddf(model, replaced_prefixes)
     optimizer = torch.optim.Adam((p for p in model.parameters() if p.requires_grad), lr=args.learning_rate)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode="max", factor=args.lr_factor, patience=args.lr_patience,
+        min_lr=args.min_learning_rate, threshold=args.lr_threshold, threshold_mode="abs",
+    )
     train_loader = loader(config["train_data"], args.sparse_factor, args.batch_size, shuffle=True)
     best = -float("inf")
+    start_epoch = 0
     checkpoint.parent.mkdir(parents=True, exist_ok=True)
+    if args.resume_checkpoint:
+        resume_checkpoint = Path(args.resume_checkpoint)
+        if not resume_checkpoint.is_absolute():
+            resume_checkpoint = THIS_DIR / resume_checkpoint
+        payload = torch.load(resume_checkpoint, map_location=device)
+        model.load_state_dict(checkpoint_state(payload), strict=True)
+        if isinstance(payload, dict) and "optimizer" in payload:
+            optimizer.load_state_dict(payload["optimizer"])
+        if isinstance(payload, dict) and "scheduler" in payload:
+            scheduler.load_state_dict(payload["scheduler"])
+        # CLI policy intentionally overrides threshold saved by older runs.
+        scheduler.threshold = args.lr_threshold
+        scheduler.threshold_mode = "abs"
+        start_epoch = int(payload.get("epoch", args.resume_epoch)) if isinstance(payload, dict) else args.resume_epoch
+        best = float(payload.get("best_psnr", -float("inf"))) if isinstance(payload, dict) else -float("inf")
+        if best == -float("inf"):
+            best, _ = evaluate_model(model, test_loader, device)
+        print(
+            f"[setup] resumed {resume_checkpoint} at epoch={start_epoch}; "
+            f"best_psnr={best:.6f}; lr={optimizer.param_groups[0]['lr']:.2e}", flush=True,
+        )
+    if start_epoch >= args.epochs:
+        raise ValueError(f"resume epoch ({start_epoch}) must be smaller than --epochs ({args.epochs})")
     run = None
     if args.swanlab:
         import swanlab
@@ -216,7 +255,7 @@ def main():
             mode=args.swanlab_mode,
         )
     try:
-        for epoch in range(1, args.epochs + 1):
+        for epoch in range(start_epoch + 1, args.epochs + 1):
             model.train()
             loss_sum = 0.0
             for sino, target in tqdm(train_loader, desc=f"fair {args.backbone} {epoch}/{args.epochs}"):
@@ -235,11 +274,18 @@ def main():
                 "train/lr": optimizer.param_groups[0]["lr"],
             }
             print(f"epoch={epoch} fair-{args.backbone} PSNR={psnr:.6f} SSIM={ssim:.6f}", flush=True)
+            scheduler.step(psnr)
             if run is not None:
                 run.log(metrics)
             if psnr > best:
                 best = psnr
-                torch.save(model.state_dict(), checkpoint)
+                torch.save(
+                    {
+                        "model": model.state_dict(), "optimizer": optimizer.state_dict(),
+                        "scheduler": scheduler.state_dict(), "epoch": epoch, "best_psnr": best,
+                    },
+                    checkpoint,
+                )
     finally:
         if run is not None:
             run.finish()

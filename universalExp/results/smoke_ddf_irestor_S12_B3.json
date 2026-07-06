@@ -1,0 +1,51 @@
+{
+  "config": "/autodl-fs/data/universalExp/configs/irestor_default.json",
+  "architecture": "ddf-I-Restor",
+  "image_backbone": "Restormer",
+  "sparse_factor": 12,
+  "batch_size": 3,
+  "micro_batch_size": 1,
+  "amp": false,
+  "input_shape": [
+    3,
+    360,
+    357
+  ],
+  "target_shape": [
+    3,
+    1,
+    256,
+    256
+  ],
+  "prediction_shape": [
+    3,
+    1,
+    256,
+    256
+  ],
+  "loss": 1.9953348636627197,
+  "finite_loss": true,
+  "restormer_has_finite_gradient": true,
+  "restormer_parameters": 6674836,
+  "total_parameters": 17661983,
+  "auxiliary_shapes": {
+    "sparse_fbp": [
+      1,
+      1,
+      256,
+      256
+    ],
+    "cascade": [
+      1,
+      1,
+      256,
+      256
+    ],
+    "fused_sinogram": [
+      1,
+      1,
+      360,
+      357
+    ]
+  }
+}

@@ -305,6 +305,21 @@ def ssim_batch(prediction, target, window_size=11):
     return float(_ssim(prediction, target, window, window_size, channel_count).detach().item())
 
 
+def finite_tensor_summary(tensor):
+    detached = tensor.detach()
+    finite = torch.isfinite(detached)
+    nan_count = int(torch.isnan(detached).sum().item())
+    inf_count = int(torch.isinf(detached).sum().item())
+    if finite.any():
+        finite_values = detached[finite]
+        return (
+            f"shape={tuple(detached.shape)} nan={nan_count} inf={inf_count} "
+            f"finite_min={float(finite_values.min().item()):.6g} "
+            f"finite_max={float(finite_values.max().item()):.6g}"
+        )
+    return f"shape={tuple(detached.shape)} nan={nan_count} inf={inf_count} no_finite_values"
+
+
 def create_ssim_window(window_size, channel):
     sigma = 1.5
     values = [math.exp(-(x - window_size // 2) ** 2 / float(2 * sigma ** 2)) for x in range(window_size)]
@@ -416,13 +431,27 @@ def evaluate_model(model, data_loader, device):
     psnr_values = []
     ssim_values = []
     with torch.no_grad():
-        for sparse_sinogram, target_ct in data_loader:
+        for batch_index, (sparse_sinogram, target_ct) in enumerate(data_loader):
             sparse_sinogram_device = sparse_sinogram.to(device=device, dtype=torch.float32)
             target_ct_device = target_ct.to(device=device, dtype=torch.float32)
             prediction_ct, _ = model(sparse_sinogram_device)
+            if not torch.isfinite(prediction_ct).all():
+                raise RuntimeError(
+                    "non-finite prediction during evaluation at "
+                    f"batch {batch_index}: {finite_tensor_summary(prediction_ct)}"
+                )
             prediction_ct_clamped = prediction_ct.clamp(0, 1)
-            psnr_values.append(psnr_batch(prediction_ct_clamped, target_ct_device))
-            ssim_values.append(ssim_batch(prediction_ct_clamped, target_ct_device))
+            psnr_value = psnr_batch(prediction_ct_clamped, target_ct_device)
+            ssim_value = ssim_batch(prediction_ct_clamped, target_ct_device)
+            if not (math.isfinite(psnr_value) and math.isfinite(ssim_value)):
+                raise RuntimeError(
+                    "non-finite metric during evaluation at "
+                    f"batch {batch_index}: psnr={psnr_value}, ssim={ssim_value}, "
+                    f"prediction={finite_tensor_summary(prediction_ct_clamped)}, "
+                    f"target={finite_tensor_summary(target_ct_device)}"
+                )
+            psnr_values.append(psnr_value)
+            ssim_values.append(ssim_value)
     return float(np.mean(psnr_values)), float(np.mean(ssim_values))
 
 

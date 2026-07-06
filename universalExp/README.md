@@ -37,11 +37,13 @@ python projection_fair_experiment.py --backbone irestor --mode train \
   --config configs/irestor_default.json --sparse_factor 12 --epochs 100
 python projection_fair_experiment.py --backbone bothcnn --mode train \
   --config configs/bothcnn_default.json --sparse_factor 12 --epochs 100
-python projection_fair_experiment.py --backbone mixed --mode train \
-  --config configs/mixed_default.json --sparse_factor 12 --epochs 100
+# Mixed has both P-Swin and RED-CNN replaced.  Use the one-command launcher so
+# the required RED-CNN warm-start, resume, training, and final test stay in the
+# right order.
+bash train_mixed_fair.sh
 ```
 
-The resulting checkpoints are saved in `checkpoints/fair_single_domain/`. Do not
+The resulting checkpoints are saved in `checkpoints/fair_protocol/`. Do not
 mix their metrics with the legacy `checkpoints/ddf/` results.
 
 For I-CNN, `warmstart` saves a RED-CNN-only checkpoint under
