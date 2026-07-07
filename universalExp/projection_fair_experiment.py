@@ -72,7 +72,14 @@ def load_redcnn_warmstart(image, path, device):
 
 def checkpoint_state(payload):
     """Accept both legacy raw state dicts and resumable fair-training checkpoints."""
-    return payload["model"] if isinstance(payload, dict) and "model" in payload else payload
+    if not isinstance(payload, dict):
+        return payload
+    for key in ("model", "model_state", "state_dict"):
+        if key in payload:
+            return payload[key]
+    if any(key in payload for key in ("optimizer", "scheduler", "epoch", "best_psnr")):
+        raise KeyError(f"checkpoint contains training metadata but no model weights; keys={list(payload)}")
+    return payload
 
 
 def train_redcnn_warmstart(student, teacher, train_loader, *, device, epochs, learning_rate, checkpoint):
