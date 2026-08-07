@@ -54,6 +54,24 @@ def loader(path, sparse_factor, batch_size, shuffle=False):
     return torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, pin_memory=torch.cuda.is_available())
 
 
+def split_train_validation_loaders(path, sparse_factor, batch_size, train_count, val_count):
+    dataset = SinogramCTDataset(path, sparse_factor)
+    required = train_count + val_count
+    if len(dataset) < required:
+        raise ValueError(f"dataset has {len(dataset)} samples, but {required} are required")
+    train_set = torch.utils.data.Subset(dataset, range(train_count))
+    val_set = torch.utils.data.Subset(dataset, range(train_count, required))
+    kwargs = {
+        "batch_size": batch_size,
+        "shuffle": False,
+        "pin_memory": torch.cuda.is_available(),
+    }
+    return (
+        torch.utils.data.DataLoader(train_set, **kwargs),
+        torch.utils.data.DataLoader(val_set, **kwargs),
+    )
+
+
 def warmstart_path(backbone, sparse_factor):
     """Standalone RED-CNN distillation checkpoint used before fair tuning."""
     return THIS_DIR / "checkpoints" / "warmstart" / f"{backbone}_REDCNN_S{sparse_factor}.pth"
@@ -156,14 +174,51 @@ def main():
     parser.add_argument("--warmstart_checkpoint", default=None, help="REDCNN-only distillation checkpoint")
     parser.add_argument("--warmstart_epochs", type=int, default=None)
     parser.add_argument("--warmstart_learning_rate", type=float, default=None)
+    parser.add_argument("--auto_warmstart", action="store_true", help="Create a missing RED-CNN warm-start before fair training")
+    parser.add_argument("--train_data", default=None, help="Override config train_data")
+    parser.add_argument("--test_data", default=None, help="Override config test_data")
+    parser.add_argument("--train_count", type=int, default=1600)
+    parser.add_argument("--val_count", type=int, default=200)
+    parser.add_argument("--seed", type=int, default=2026)
+    parser.add_argument("--result_json", default=None)
+    parser.add_argument("--dry_run", action="store_true")
     parser.add_argument("--device", default="cuda:0" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--swanlab", action="store_true", help="log epoch metrics to SwanLab")
     parser.add_argument("--swanlab_project", default="universalExp")
+    parser.add_argument("--swanlab_run_name", default=None)
     parser.add_argument("--swanlab_mode", choices=("cloud", "local", "offline"), default="cloud")
     args = parser.parse_args()
 
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
-    set_seed(int(config["seed"]))
+    if args.train_data:
+        config["train_data"] = args.train_data
+    if args.test_data:
+        config["test_data"] = args.test_data
+    checkpoint = Path(args.checkpoint) if args.checkpoint else THIS_DIR / "checkpoints" / "fair_protocol" / f"{args.backbone}_S{args.sparse_factor}.pth"
+    if not checkpoint.is_absolute():
+        checkpoint = THIS_DIR / checkpoint
+    if args.dry_run:
+        required = [Path(config["train_data"]), Path(config["test_data"]), Path(args.original_checkpoint)]
+        missing = [str(path) for path in required if not path.is_file()]
+        if missing:
+            raise FileNotFoundError(f"missing required files: {missing}")
+        print(json.dumps({
+            "task": f"backbone_{args.backbone}_S{args.sparse_factor}",
+            "backbone": args.backbone,
+            "sparse_factor": args.sparse_factor,
+            "epochs": args.epochs,
+            "train_count": args.train_count,
+            "validation_count": args.val_count,
+            "checkpoint": str(checkpoint),
+            "auto_warmstart": bool(args.auto_warmstart),
+            "swanlab_project": args.swanlab_project,
+        }, indent=2))
+        return
+    if args.mode == "train" and checkpoint.exists() and not args.resume_checkpoint:
+        raise FileExistsError(
+            f"checkpoint already exists: {checkpoint}; pass --resume_checkpoint to continue"
+        )
+    set_seed(args.seed)
     device = torch.device(args.device)
     projection, image = (None, None) if args.backbone == "original" else build_replacements(args.backbone, config)
     model = OriginalDDFWithReplacement(
@@ -192,7 +247,9 @@ def main():
         learning_rate = args.warmstart_learning_rate or float(warmstart_config.get("learning_rate", 1e-4))
         teacher = OriginalDDFWithReplacement(args.sparse_factor).to(device)
         load_original_weights(teacher, args.original_checkpoint)
-        train_loader = loader(config["train_data"], args.sparse_factor, args.batch_size, shuffle=True)
+        train_loader, _ = split_train_validation_loaders(
+            config["train_data"], args.sparse_factor, args.batch_size, args.train_count, args.val_count
+        )
         best_loss = train_redcnn_warmstart(
             model.ct, teacher, train_loader, device=device, epochs=epochs,
             learning_rate=learning_rate, checkpoint=warmstart_checkpoint,
@@ -200,7 +257,6 @@ def main():
         print(f"saved RED-CNN warm-start to {warmstart_checkpoint} (best distill MSE={best_loss:.8f})")
         return
 
-    checkpoint = Path(args.checkpoint) if args.checkpoint else THIS_DIR / "checkpoints" / "fair_protocol" / f"{args.backbone}_S{args.sparse_factor}.pth"
     if args.mode == "test":
         model.load_state_dict(checkpoint_state(torch.load(checkpoint, map_location=device)), strict=True)
         psnr, ssim = evaluate_model(model, test_loader, device)
@@ -209,11 +265,23 @@ def main():
 
     if supports_redcnn_warmstart(args.backbone):
         if not warmstart_checkpoint.exists():
-            raise FileNotFoundError(
-                "I-CNN fair training requires a RED-CNN warm-start because a random image "
-                "backbone corrupts the frozen original DDF feedback path. Run: "
-                f"python {Path(__file__).name} --backbone {args.backbone} --mode warmstart "
-                f"--config {args.config} --sparse_factor {args.sparse_factor}"
+            if not args.auto_warmstart:
+                raise FileNotFoundError(
+                    "I-CNN fair training requires a RED-CNN warm-start. "
+                    "Pass --auto_warmstart or run warmstart mode first."
+                )
+            warmstart_config = config.get("warmstart", {})
+            warmstart_epochs = args.warmstart_epochs or int(warmstart_config.get("epochs", 30))
+            warmstart_lr = args.warmstart_learning_rate or float(warmstart_config.get("learning_rate", 1e-4))
+            teacher = OriginalDDFWithReplacement(args.sparse_factor).to(device)
+            load_original_weights(teacher, args.original_checkpoint)
+            warmstart_train_loader, _ = split_train_validation_loaders(
+                config["train_data"], args.sparse_factor, args.batch_size, args.train_count, args.val_count
+            )
+            train_redcnn_warmstart(
+                model.ct, teacher, warmstart_train_loader, device=device,
+                epochs=warmstart_epochs, learning_rate=warmstart_lr,
+                checkpoint=warmstart_checkpoint,
             )
         load_redcnn_warmstart(model.ct, warmstart_checkpoint, device)
         print(f"[setup] loaded RED-CNN warm-start: {warmstart_checkpoint}", flush=True)
@@ -224,7 +292,9 @@ def main():
         optimizer, mode="max", factor=args.lr_factor, patience=args.lr_patience,
         min_lr=args.min_learning_rate, threshold=args.lr_threshold, threshold_mode="abs",
     )
-    train_loader = loader(config["train_data"], args.sparse_factor, args.batch_size, shuffle=True)
+    train_loader, val_loader = split_train_validation_loaders(
+        config["train_data"], args.sparse_factor, args.batch_size, args.train_count, args.val_count
+    )
     best = -float("inf")
     start_epoch = 0
     checkpoint.parent.mkdir(parents=True, exist_ok=True)
@@ -244,7 +314,7 @@ def main():
         start_epoch = int(payload.get("epoch", args.resume_epoch)) if isinstance(payload, dict) else args.resume_epoch
         best = float(payload.get("best_psnr", -float("inf"))) if isinstance(payload, dict) else -float("inf")
         if best == -float("inf"):
-            best, _ = evaluate_model(model, test_loader, device)
+            best, _ = evaluate_model(model, val_loader, device)
         print(
             f"[setup] resumed {resume_checkpoint} at epoch={start_epoch}; "
             f"best_psnr={best:.6f}; lr={optimizer.param_groups[0]['lr']:.2e}", flush=True,
@@ -256,9 +326,11 @@ def main():
         import swanlab
         run = swanlab.init(
             project=args.swanlab_project,
-            experiment_name=f"fair-{args.backbone}-S{args.sparse_factor}",
+            experiment_name=args.swanlab_run_name or f"fair-{args.backbone}-S{args.sparse_factor}",
             config={"backbone": args.backbone, "sparse_factor": args.sparse_factor,
-                    "protocol": "original-ddf-single-replacement-frozen-shared", **config},
+                    "protocol": "original-ddf-single-replacement-frozen-shared",
+                    "train_count": args.train_count, "validation_count": args.val_count,
+                    "seed": args.seed, **config},
             mode=args.swanlab_mode,
         )
     try:
@@ -269,21 +341,23 @@ def main():
                 optimizer.zero_grad(set_to_none=True)
                 prediction, _ = model(sino.to(device, dtype=torch.float32))
                 loss = F.mse_loss(prediction, target.to(device, dtype=torch.float32))
+                if not torch.isfinite(loss):
+                    raise RuntimeError(f"non-finite loss at epoch {epoch}: {loss.item()}")
                 loss.backward()
                 optimizer.step()
                 loss_sum += loss.detach().item()
-            psnr, ssim = evaluate_model(model, test_loader, device)
+            psnr, ssim = evaluate_model(model, val_loader, device)
             metrics = {
                 "epoch": epoch,
                 "train/loss": loss_sum / len(train_loader),
-                "eval/psnr": psnr,
-                "eval/ssim": ssim,
+                "val/psnr": psnr,
+                "val/ssim": ssim,
                 "train/lr": optimizer.param_groups[0]["lr"],
             }
             print(f"epoch={epoch} fair-{args.backbone} PSNR={psnr:.6f} SSIM={ssim:.6f}", flush=True)
             scheduler.step(psnr)
             if run is not None:
-                run.log(metrics)
+                run.log(metrics, step=epoch)
             if psnr > best:
                 best = psnr
                 torch.save(
@@ -293,6 +367,25 @@ def main():
                     },
                     checkpoint,
                 )
+        best_payload = torch.load(checkpoint, map_location=device)
+        model.load_state_dict(checkpoint_state(best_payload), strict=True)
+        test_psnr, test_ssim = evaluate_model(model, test_loader, device)
+        result = {
+            "task": f"backbone_{args.backbone}_S{args.sparse_factor}",
+            "sparse_factor": args.sparse_factor,
+            "best_epoch": int(best_payload["epoch"]),
+            "best_val_psnr": float(best_payload["best_psnr"]),
+            "test_psnr": test_psnr,
+            "test_ssim": test_ssim,
+            "checkpoint": str(checkpoint),
+        }
+        print(json.dumps(result, indent=2), flush=True)
+        if args.result_json:
+            result_path = Path(args.result_json)
+            result_path.parent.mkdir(parents=True, exist_ok=True)
+            result_path.write_text(json.dumps(result, indent=2), encoding="utf-8")
+        if run is not None:
+            run.log({"test/psnr": test_psnr, "test/ssim": test_ssim})
     finally:
         if run is not None:
             run.finish()
