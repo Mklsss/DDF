@@ -13,7 +13,6 @@ from loaders.load_dataset import CTSlice_Provider, NPZ_CTSlice_Provider
 
 from skimage.metrics import peak_signal_noise_ratio as compare_psnr
 from skimage.metrics import structural_similarity as compare_ssim
-from sklearn import metrics
 from tqdm import tqdm
 from torch.cuda.amp import autocast, GradScaler
 
@@ -296,7 +295,7 @@ class Trainer:
                     sigma=1.5
                 )
 
-                mse = metrics.mean_squared_error(x, y)
+                mse = float(np.mean((x - y) ** 2))
                 if np.isnan(mse) or np.isinf(mse):
                     mse = 0.0
                 rmse = np.sqrt(mse)

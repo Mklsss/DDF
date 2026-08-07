@@ -1,12 +1,31 @@
 import argparse
+import random
+
+import numpy as np
+import torch
 
 import main as dudotrans_main
+
+
+PAPER_VIEWS = {2: 180, 4: 90, 8: 45, 12: 30}
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description="AutoDL launcher for DuDoTrans.")
     parser.add_argument("--train_npz", type=str, default="/root/autodl-fs/dataset/train_meiaonew.npz")
-    parser.add_argument("--views", type=int, default=30, help="Sparse view count, e.g. 30/60/90/120.")
+    parser.add_argument(
+        "--sparse_factor",
+        type=int,
+        choices=sorted(PAPER_VIEWS),
+        default=None,
+        help="Paper sparse factor. S=2/4/8/12 maps to 180/90/45/30 views.",
+    )
+    parser.add_argument(
+        "--views",
+        type=int,
+        default=None,
+        help="Explicit view count. When --sparse_factor is set, this must match 360/S.",
+    )
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--batch_size", type=int, default=1)
@@ -17,14 +36,43 @@ def parse_args():
     parser.add_argument("--cpu", action="store_true")
     parser.add_argument("--amp", action="store_true")
     parser.add_argument("--metric_interval", type=int, default=200)
+    parser.add_argument("--seed", type=int, default=2026)
+    parser.add_argument("--dry_run", action="store_true", help="Validate arguments without constructing the model.")
     return parser.parse_args()
+
+
+def resolve_views(sparse_factor, views):
+    if sparse_factor is None:
+        return 30 if views is None else views
+    expected = PAPER_VIEWS[sparse_factor]
+    if views is not None and views != expected:
+        raise ValueError(
+            f"S={sparse_factor} requires {expected} views according to the paper, "
+            f"but --views={views} was supplied."
+        )
+    return expected
+
+
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
 
 def main():
     args = parse_args()
+    args.views = resolve_views(args.sparse_factor, args.views)
+    set_seed(args.seed)
+    print(f"[train_dudotrans] sparse_factor={args.sparse_factor}")
     print(f"[train_dudotrans] views={args.views}")
     print(f"[train_dudotrans] train_npz={args.train_npz}")
     print(f"[train_dudotrans] output_dir={args.output_dir}")
+    print(f"[train_dudotrans] seed={args.seed}")
+    if args.dry_run:
+        print("[train_dudotrans] dry-run validation passed")
+        return
 
     trainer = dudotrans_main.Trainer(
         learning_rate=args.lr,
