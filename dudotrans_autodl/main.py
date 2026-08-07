@@ -33,6 +33,8 @@ class Trainer:
                  output_dir='./results',
                  resume_ckpt=None,
                  batch_size=1,
+                 swanlab_module=None,
+                 validation_seed=2026,
                  poission_level=1e5,
                  gaussian_level=0.05):
         
@@ -53,6 +55,8 @@ class Trainer:
         self.test_npz = test_npz
         self.output_dir = output_dir
         self.resume_ckpt = resume_ckpt
+        self.swanlab = swanlab_module
+        self.validation_seed = validation_seed
 
         if self.is_cuda:
             torch.backends.cudnn.benchmark = True  # 对固定输入大小加速
@@ -82,6 +86,14 @@ class Trainer:
             batch_size=self.batch_size,
             shuffle=True,
             num_workers=self.num_workers,
+            pin_memory=self.is_cuda
+        )
+        self.validation_dataset = Subset(self.full_train_dataset, self.validation_indices)
+        self.validation_loader = DataLoader(
+            dataset=self.validation_dataset,
+            batch_size=1,
+            shuffle=False,
+            num_workers=0,
             pin_memory=self.is_cuda
         )
 
@@ -122,10 +134,10 @@ class Trainer:
         os.makedirs(self.vis_dir, exist_ok=True)
 
         # ---- 训练状态初始化 / 恢复 ----
+        self.best_val_psnr = -np.inf
         if self.is_restart:
             self.epoch = 0
             self.global_iter = 0
-            self.best_loss = np.inf
             print('Training process started')
         else:
             try:
@@ -138,7 +150,8 @@ class Trainer:
                     raise FileNotFoundError(f'No checkpoint found in {self.model_dir}')
                 print(f'Loading checkpoint: {ckpt_path}')
                 state = torch.load(ckpt_path)
-                self.epoch = state['epoch']
+                self.epoch = state['epoch'] + 1
+                self.best_val_psnr = state.get('best_val_psnr', -np.inf)
                 self.reconstructor_func.load_state_dict(state['reconstructor_state'])
                 self.reconstructor_optimizer.load_state_dict(state['reconstructor_optimizer'])
                 print('Saved ckpt is loaded successfully')
@@ -233,6 +246,36 @@ class Trainer:
                 .format(e, self.max_epoch - 1, epoch_time, avg_recon, avg_ril, avg_sino, avg_total)
             )
 
+            validation_metrics = self.validate()
+            current_lr = self.lr if e < switch_epoch else 0.1 * self.lr
+            if self.swanlab is not None:
+                self.swanlab.log({
+                    'train/loss_recon': float(avg_recon),
+                    'train/loss_ril': float(avg_ril),
+                    'train/loss_sino': float(avg_sino),
+                    'train/loss_total': float(avg_total),
+                    'train/learning_rate': float(current_lr),
+                    'train/epoch_time_seconds': float(epoch_time),
+                    'val/loss_total': float(validation_metrics['loss_total']),
+                    'val/psnr': float(validation_metrics['psnr']),
+                    'val/ssim': float(validation_metrics['ssim']),
+                    'val/rmse': float(validation_metrics['rmse']),
+                    'epoch': e,
+                }, step=e)
+
+            if validation_metrics['psnr'] > self.best_val_psnr:
+                self.best_val_psnr = validation_metrics['psnr']
+                best_state = {
+                    'epoch': e,
+                    'best_val_psnr': self.best_val_psnr,
+                    'reconstructor_state': self.reconstructor_func.state_dict(),
+                    'reconstructor_optimizer': self.reconstructor_optimizer.state_dict(),
+                    'reconstructor_optimizer_low_lr': self.reconstructor_optimizer_20.state_dict(),
+                }
+                best_path = os.path.join(self.model_dir, 'best_val_psnr.pth.tar')
+                torch.save(best_state, best_path)
+                print(f"New best validation PSNR {self.best_val_psnr:.4f}: {best_path}")
+
             # ----- 3. 定期保存 checkpoint（每 10 个 epoch / 最后一个 epoch） -----
             if e % 10 == 0 or e == self.max_epoch - 1:
                 state = {
@@ -241,6 +284,48 @@ class Trainer:
                     'reconstructor_optimizer': self.reconstructor_optimizer.state_dict(),
                 }
                 self.save_checkpoint(e, state, num_iter)
+
+    def validate(self):
+        if len(self.validation_dataset) == 0:
+            return {'loss_total': np.nan, 'psnr': np.nan, 'ssim': np.nan, 'rmse': np.nan}
+
+        # Reuse exactly the same simulated validation noise at every epoch.
+        numpy_state = np.random.get_state()
+        np.random.seed(self.validation_seed + self.num_view)
+        self.reconstructor_func.eval()
+        totals = {'loss_total': 0.0, 'psnr': 0.0, 'ssim': 0.0, 'rmse': 0.0}
+
+        with torch.no_grad():
+            pbar = tqdm(self.validation_loader, desc='Validation', ncols=120, leave=False)
+            for gt, fbp_u, projs_noisy in pbar:
+                if self.is_cuda:
+                    gt = gt.cuda(non_blocking=True)
+                    fbp_u = fbp_u.cuda(non_blocking=True)
+                    projs_noisy = projs_noisy.float().cuda(non_blocking=True)
+
+                with autocast(enabled=self.use_amp):
+                    sinos_gt, sinos_enhanced, img_ril, reconstructed_image = \
+                        self.reconstructor_func(fbp_u, gt, projs_noisy)
+                    loss_total = (
+                        self.reconstructor_loss(reconstructed_image, gt)
+                        + self.ril_loss(img_ril, gt)
+                        + self.sinogram_loss(sinos_enhanced, sinos_gt)
+                    )
+                psnr, ssim, rmse = self.calculate_metric(reconstructed_image, gt)
+                totals['loss_total'] += loss_total.item()
+                totals['psnr'] += psnr
+                totals['ssim'] += ssim
+                totals['rmse'] += rmse
+
+        count = len(self.validation_loader)
+        metrics = {name: value / count for name, value in totals.items()}
+        self.reconstructor_func.train()
+        np.random.set_state(numpy_state)
+        print(
+            'Validation - Loss: {loss_total:.4f} | PSNR: {psnr:.4f} | '
+            'SSIM: {ssim:.4f} | RMSE: {rmse:.4f}'.format(**metrics)
+        )
+        return metrics
 
     def save_checkpoint(self, num_epoch, state, num_iter):
         save_path = os.path.join(

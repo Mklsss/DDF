@@ -43,6 +43,9 @@ def parse_args():
     parser.add_argument("--amp", action="store_true")
     parser.add_argument("--metric_interval", type=int, default=200)
     parser.add_argument("--seed", type=int, default=2026)
+    parser.add_argument("--swanlab", action="store_true", help="Log train/validation curves to SwanLab.")
+    parser.add_argument("--swanlab_project", type=str, default="DDF-reproduction")
+    parser.add_argument("--swanlab_experiment", type=str, default=None)
     parser.add_argument("--dry_run", action="store_true", help="Validate arguments without constructing the model.")
     parser.add_argument("--init_only", action="store_true", help="Construct data/model, then exit before training.")
     return parser.parse_args()
@@ -82,6 +85,29 @@ def main():
         print("[train_dudotrans] dry-run validation passed")
         return
 
+    swanlab_module = None
+    if args.swanlab:
+        import swanlab
+        experiment_name = args.swanlab_experiment or (
+            f"DuDoTrans_S{args.sparse_factor}_view{args.views:03d}_{args.epochs}ep"
+        )
+        swanlab.init(
+            project=args.swanlab_project,
+            experiment_name=experiment_name,
+            config={
+                "method": "DuDoTrans",
+                "sparse_factor": args.sparse_factor,
+                "views": args.views,
+                "epochs": args.epochs,
+                "batch_size": args.batch_size,
+                "lr": args.lr,
+                "train_count": args.train_count,
+                "validation_count": 200,
+                "seed": args.seed,
+            },
+        )
+        swanlab_module = swanlab
+
     trainer = dudotrans_main.Trainer(
         learning_rate=args.lr,
         is_restart=args.restart,
@@ -96,11 +122,15 @@ def main():
         output_dir=args.output_dir,
         resume_ckpt=args.resume_ckpt,
         batch_size=args.batch_size,
+        swanlab_module=swanlab_module,
+        validation_seed=args.seed,
     )
     if args.init_only:
         print("[train_dudotrans] initialization check passed")
         return
     trainer.train()
+    if swanlab_module is not None:
+        swanlab_module.finish()
     print("[train_dudotrans] done")
 
 
