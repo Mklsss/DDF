@@ -7,7 +7,7 @@ import shutil
 from glob import glob
 import numpy as np
 import SimpleITK as sitk
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Subset
 from modules.reconstructor import reconstructor, reconstructor_loss
 from loaders.load_dataset import CTSlice_Provider, NPZ_CTSlice_Provider
 
@@ -25,6 +25,7 @@ class Trainer:
                  is_cuda=True,
                  num_view=30,
                  num_workers=0,
+                 train_count=1600,
                  use_amp=False,
                  metric_interval=200,
                  train_npz='/root/autodl-fs/dataset/train_meiaonew.npz',
@@ -45,6 +46,7 @@ class Trainer:
         self.is_restart = is_restart
         self.max_epoch = max_epoch
         self.num_workers = num_workers
+        self.train_count = train_count
         self.use_amp = use_amp and is_cuda  # 只在 CUDA 下启用 AMP
         self.metric_interval = metric_interval  # 每多少个 iter 计算一次 PSNR/SSIM
         self.train_npz = train_npz
@@ -57,12 +59,23 @@ class Trainer:
 
         # ---- Data Flow Pipeline ----
         print('Reading CT slices Beginning (NPZ version)')
-        self.train_dataset = NPZ_CTSlice_Provider(
+        self.full_train_dataset = NPZ_CTSlice_Provider(
             npz_path=self.train_npz,
             poission_level=self.poission_level,
             gaussian_level=self.gaussian_level,
             num_view=self.num_view,  # 控制稀疏角度数
             img_size=512             # 与 reconstructor 的 img_h,img_w 保持一致
+        )
+        if self.train_count <= 0 or self.train_count > len(self.full_train_dataset):
+            raise ValueError(
+                f'train_count must be between 1 and {len(self.full_train_dataset)}, '
+                f'got {self.train_count}'
+            )
+        self.train_dataset = Subset(self.full_train_dataset, range(self.train_count))
+        self.validation_indices = range(self.train_count, len(self.full_train_dataset))
+        print(
+            f'Dataset split: train={len(self.train_dataset)}, '
+            f'reserved_validation={len(self.validation_indices)}'
         )
         self.train_loader = DataLoader(
             dataset=self.train_dataset,
@@ -73,7 +86,7 @@ class Trainer:
         )
 
         # ---- 模型与损失 ----
-        self.reconstructor_func = reconstructor(self.train_dataset)
+        self.reconstructor_func = reconstructor(self.full_train_dataset)
 
         num_param = sum(p.numel() for p in self.reconstructor_func.parameters() if p.requires_grad)
         print('Number of parameters in model: {}'.format(num_param))
@@ -385,6 +398,7 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--num_workers', type=int, default=0)
+    parser.add_argument('--train_count', type=int, default=1600)
     parser.add_argument('--output_dir', type=str, default='./results')
     parser.add_argument('--resume_ckpt', type=str, default=None)
     parser.add_argument('--restart', action='store_true', help='Start from scratch instead of loading a checkpoint.')
@@ -400,6 +414,7 @@ if __name__ == '__main__':
         is_cuda=(not args.cpu),
         num_view=args.views,
         num_workers=args.num_workers,
+        train_count=args.train_count,
         use_amp=args.amp,
         metric_interval=args.metric_interval,
         train_npz=args.train_npz,

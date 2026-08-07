@@ -15,6 +15,7 @@ EPOCHS="${EPOCHS:-20}"
 LEARNING_RATE="${LEARNING_RATE:-1e-4}"
 BATCH_SIZE="${BATCH_SIZE:-1}"
 NUM_WORKERS="${NUM_WORKERS:-0}"
+TRAIN_COUNT="${TRAIN_COUNT:-1600}"
 SEED="${SEED:-2026}"
 FORCE="${FORCE:-0}"
 
@@ -54,6 +55,7 @@ train_setting() {
     --lr "$LEARNING_RATE" \
     --batch_size "$BATCH_SIZE" \
     --num_workers "$NUM_WORKERS" \
+    --train_count "$TRAIN_COUNT" \
     --metric_interval 200 \
     --seed "$SEED" \
     --output_dir "$OUTPUT_DIR" \

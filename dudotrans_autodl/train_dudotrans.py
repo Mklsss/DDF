@@ -30,6 +30,12 @@ def parse_args():
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument("--num_workers", type=int, default=0)
+    parser.add_argument(
+        "--train_count",
+        type=int,
+        default=1600,
+        help="Use the first N slices for optimization; reserve the remainder for validation.",
+    )
     parser.add_argument("--output_dir", type=str, default="./results")
     parser.add_argument("--resume_ckpt", type=str, default=None)
     parser.add_argument("--restart", action="store_true", help="Start from scratch.")
@@ -38,6 +44,7 @@ def parse_args():
     parser.add_argument("--metric_interval", type=int, default=200)
     parser.add_argument("--seed", type=int, default=2026)
     parser.add_argument("--dry_run", action="store_true", help="Validate arguments without constructing the model.")
+    parser.add_argument("--init_only", action="store_true", help="Construct data/model, then exit before training.")
     return parser.parse_args()
 
 
@@ -69,6 +76,7 @@ def main():
     print(f"[train_dudotrans] views={args.views}")
     print(f"[train_dudotrans] train_npz={args.train_npz}")
     print(f"[train_dudotrans] output_dir={args.output_dir}")
+    print(f"[train_dudotrans] train_count={args.train_count}")
     print(f"[train_dudotrans] seed={args.seed}")
     if args.dry_run:
         print("[train_dudotrans] dry-run validation passed")
@@ -81,6 +89,7 @@ def main():
         is_cuda=(not args.cpu),
         num_view=args.views,
         num_workers=args.num_workers,
+        train_count=args.train_count,
         use_amp=args.amp,
         metric_interval=args.metric_interval,
         train_npz=args.train_npz,
@@ -88,6 +97,9 @@ def main():
         resume_ckpt=args.resume_ckpt,
         batch_size=args.batch_size,
     )
+    if args.init_only:
+        print("[train_dudotrans] initialization check passed")
+        return
     trainer.train()
     print("[train_dudotrans] done")
 
