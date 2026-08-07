@@ -22,9 +22,24 @@ SEED="${SEED:-2026}"
 PROJECT="${SWANLAB_PROJECT:-DDF-reviewer-ablation-2026}"
 RESUME="${RESUME:-0}"
 DRY_RUN="${DRY_RUN:-0}"
+CLEAR_NETWORK_PROXY="${CLEAR_NETWORK_PROXY:-1}"
 
 export PYTHONUNBUFFERED=1
 export PYTHONPATH="$ROOT/FH/code:$ROOT/universalExp${PYTHONPATH:+:$PYTHONPATH}"
+
+# AutoDL's acceleration helper can leave a dead localhost proxy behind after
+# the proxy process stops. SwanLab uses Requests, which recognizes every
+# environment variable whose name ends in _proxy, not only the common six.
+# Bypass all such proxies by default so cloud logging connects directly.
+if [[ "$CLEAR_NETWORK_PROXY" == "1" ]]; then
+  while IFS= read -r env_name; do
+    if [[ "${env_name,,}" == *_proxy ]]; then
+      unset "$env_name"
+    fi
+  done < <(compgen -e)
+  export NO_PROXY="*"
+  export no_proxy="*"
+fi
 
 if [[ ! -x "$PYTHON_BIN" ]]; then
   echo "Python not found: $PYTHON_BIN" >&2
@@ -34,6 +49,9 @@ if [[ ! -f "$TRAIN_NPZ" || ! -f "$TEST_NPZ" ]]; then
   echo "Training or test NPZ is missing." >&2
   exit 1
 fi
+
+effective_proxies="$($PYTHON_BIN -c 'import requests; print(requests.utils.get_environ_proxies("https://api.swanlab.cn"))')"
+echo "[setup] SwanLab effective proxies: $effective_proxies" >&2
 
 run_module() {
   local variant="$1"
