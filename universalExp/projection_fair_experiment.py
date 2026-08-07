@@ -12,7 +12,7 @@ from tqdm.auto import tqdm
 from projection_fair import OriginalDDFWithReplacement, freeze_shared_ddf, load_original_weights
 
 THIS_DIR = Path(__file__).resolve().parent
-LEGACY_ROOT = Path("/autodl-fs/data/FH/code")
+LEGACY_ROOT = Path("/root/autodl-fs/PAPER2/FH/code")
 if str(LEGACY_ROOT) not in sys.path:
     sys.path.insert(0, str(LEGACY_ROOT))
 

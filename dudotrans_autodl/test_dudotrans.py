@@ -9,7 +9,51 @@ from glob import glob
 import numpy as np
 import torch
 from PIL import Image, ImageDraw, ImageFont
-from skimage.metrics import peak_signal_noise_ratio, structural_similarity
+try:
+    from skimage.metrics import peak_signal_noise_ratio, structural_similarity
+except ImportError:
+    from scipy.ndimage import gaussian_filter
+
+    def peak_signal_noise_ratio(reference, prediction, data_range=1.0):
+        mse = np.mean((np.asarray(reference) - np.asarray(prediction)) ** 2)
+        return float("inf") if mse == 0 else 10.0 * np.log10((data_range ** 2) / mse)
+
+    def structural_similarity(
+        reference,
+        prediction,
+        gaussian_weights=True,
+        win_size=11,
+        data_range=1.0,
+        sigma=1.5,
+    ):
+        if not gaussian_weights:
+            raise ValueError("This fallback implements gaussian-weighted SSIM only")
+        reference = np.asarray(reference, dtype=np.float64)
+        prediction = np.asarray(prediction, dtype=np.float64)
+        truncate = ((win_size - 1) / 2) / sigma
+        mu_x = gaussian_filter(reference, sigma=sigma, truncate=truncate, mode="reflect")
+        mu_y = gaussian_filter(prediction, sigma=sigma, truncate=truncate, mode="reflect")
+        mu_x_sq, mu_y_sq, mu_xy = mu_x * mu_x, mu_y * mu_y, mu_x * mu_y
+        covariance_norm = (win_size ** 2) / (win_size ** 2 - 1)
+        sigma_x_sq = covariance_norm * (
+            gaussian_filter(reference * reference, sigma=sigma, truncate=truncate, mode="reflect")
+            - mu_x_sq
+        )
+        sigma_y_sq = covariance_norm * (
+            gaussian_filter(prediction * prediction, sigma=sigma, truncate=truncate, mode="reflect")
+            - mu_y_sq
+        )
+        sigma_xy = covariance_norm * (
+            gaussian_filter(reference * prediction, sigma=sigma, truncate=truncate, mode="reflect")
+            - mu_xy
+        )
+        c1 = (0.01 * data_range) ** 2
+        c2 = (0.03 * data_range) ** 2
+        score = ((2 * mu_xy + c1) * (2 * sigma_xy + c2)) / (
+            (mu_x_sq + mu_y_sq + c1) * (sigma_x_sq + sigma_y_sq + c2)
+        )
+        pad = (win_size - 1) // 2
+        return float(score[pad:-pad, pad:-pad].mean())
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 

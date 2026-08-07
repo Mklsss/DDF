@@ -41,11 +41,6 @@ method_specs = [
         "filename": "redcnn.png",
     },
     {
-        "title": "DuDoTrans",
-        "root": CODE_ROOT / "fig/qualitative_result/dudotrans",
-        "filename": "dudotrans.png",
-    },
-    {
         "title": "Cascade",
         "root": CODE_ROOT / "fig/qualitative_raw_no_overlap_cascade_original",
         "filename": "cascade.png",

@@ -1,0 +1,35 @@
+{
+  "analysis_scope": "paired image-slice-level comparisons on one held-out patient",
+  "sample_count": 200,
+  "base_metrics": "/autodl-fs/data/PAPER2/FH/code/results/statistical_significance_unified_200/per_slice_metrics.csv",
+  "base_metrics_sha256": "b4415e37a7284a4aacfbbc8160e37c9734f80bbda56ff81b4ef9c18423bb1556",
+  "dudotrans_protocol": "original checkpoint, native view count, native 512x512 preprocessing",
+  "dudotrans": {
+    "4": {
+      "views": 90,
+      "metrics_csv": "/autodl-fs/data/PAPER2/FH/dudotrans_autodl/results/original_checkpoint_unified_200/dudotrans_S4_view090.csv",
+      "metrics_csv_sha256": "741a9b8eaa868891b3ac6e8d96b9e6707051ed3beb08aca21b694be7895293a8",
+      "checkpoint": "/autodl-fs/data/PAPER2/FH/dudotrans_autodl/results/models/view_090/epoch_019_iter_001799.pth.tar",
+      "checkpoint_size_bytes": 276538346,
+      "checkpoint_sha256": "9a6e685802d0752d252e033e2e8b506093dd387a14f0781c4a566efce21512d2",
+      "native_image_size": 512
+    },
+    "12": {
+      "views": 30,
+      "metrics_csv": "/autodl-fs/data/PAPER2/FH/dudotrans_autodl/results/original_checkpoint_unified_200/dudotrans_S12_view030.csv",
+      "metrics_csv_sha256": "a430f453c131444088de99a13e9a52f9cc14caa8284be22089a66e13e7d24c11",
+      "checkpoint": "/autodl-fs/data/PAPER2/FH/dudotrans_autodl/results/models/view_030/epoch_019_iter_001799.pth.tar",
+      "checkpoint_size_bytes": 276538346,
+      "checkpoint_sha256": "70f42634c769c26cee7cf0258306f3b0ef3640495118f93777248ab479ee852c",
+      "native_image_size": 512
+    }
+  },
+  "unavailable_original_checkpoints": {
+    "2": "the local 120-view checkpoint is truncated and cannot be loaded",
+    "8": "the local 60-view checkpoint is truncated and cannot be loaded"
+  },
+  "wilcoxon": "two-sided paired Wilcoxon signed-rank test",
+  "multiplicity": "Holm correction within each sparse-factor/metric family",
+  "confidence_interval": "paired percentile bootstrap of mean difference, 10000 resamples",
+  "seed": 2026
+}

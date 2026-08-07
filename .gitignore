@@ -10,7 +10,9 @@ FH/code/data/
 FH/code/weights/*
 !FH/code/weights/index_fpnew.npy
 !FH/code/weights/data_fpnew.npy
-FH/code/results/
+FH/code/results/*
+!FH/code/results/statistical_significance_original_dudotrans/
+!FH/code/results/statistical_significance_original_dudotrans/**
 FH/code/fig/
 FH/code/logs/
 FH/code/swanlog/
