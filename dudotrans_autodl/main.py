@@ -21,7 +21,7 @@ class Trainer:
     def __init__(self, 
                  learning_rate=1e-4,
                  is_restart=False,#############
-                 max_epoch=20,
+                 max_epoch=200,
                  is_cuda=True,
                  num_view=30,
                  num_workers=0,
@@ -489,7 +489,7 @@ if __name__ == '__main__':
     parser.add_argument('--train_npz', type=str, default='/root/autodl-fs/dataset/train_meiaonew.npz')
     parser.add_argument('--test_npz', type=str, default=None)
     parser.add_argument('--views', type=int, default=30, help='Sparse view count, e.g. 30/60/90/120.')
-    parser.add_argument('--epochs', type=int, default=20)
+    parser.add_argument('--epochs', type=int, default=200)
     parser.add_argument('--lr', type=float, default=1e-4)
     parser.add_argument('--batch_size', type=int, default=1)
     parser.add_argument('--num_workers', type=int, default=0)

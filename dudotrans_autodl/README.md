@@ -48,7 +48,7 @@ conda install -y --override-channels \
 python train_dudotrans.py \
   --train_npz /root/autodl-fs/dataset/train_meiaonew.npz \
   --views 30 \
-  --epochs 100 \
+  --epochs 200 \
   --restart \
   --output_dir ./results
 ```
@@ -78,7 +78,7 @@ results/models/view_120/
 python train_dudotrans.py \
   --train_npz /root/autodl-fs/dataset/train_meiaonew.npz \
   --views 30 \
-  --epochs 100 \
+  --epochs 200 \
   --resume_ckpt ./results/models/view_030/latest.pth.tar \
   --output_dir ./results
 ```
