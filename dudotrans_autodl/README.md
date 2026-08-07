@@ -79,7 +79,7 @@ python train_dudotrans.py \
   --train_npz /root/autodl-fs/dataset/train_meiaonew.npz \
   --views 30 \
   --epochs 100 \
-  --resume_ckpt ./results/models/view_030/epoch_019_iter_001799.pth.tar \
+  --resume_ckpt ./results/models/view_030/latest.pth.tar \
   --output_dir ./results
 ```
 

@@ -144,8 +144,12 @@ class Trainer:
                 # 旧 checkpoint 依旧从旧目录读取（如果你有老的 ckpt）
                 ckpt_path = './results/models/view_030/epoch_010_iter_001799.pth.tar'
                 #ckpt_path = './results/models/view_030/epoch_000_iter_001799.pth.tar'
+                latest_path = os.path.join(self.model_dir, 'latest.pth.tar')
                 ckpt_candidates = sorted(glob(os.path.join(self.model_dir, '*.pth.tar')))
-                ckpt_path = self.resume_ckpt or (ckpt_candidates[-1] if ckpt_candidates else None)
+                ckpt_path = self.resume_ckpt or (
+                    latest_path if os.path.isfile(latest_path)
+                    else (ckpt_candidates[-1] if ckpt_candidates else None)
+                )
                 if ckpt_path is None:
                     raise FileNotFoundError(f'No checkpoint found in {self.model_dir}')
                 print(f'Loading checkpoint: {ckpt_path}')
@@ -154,6 +158,10 @@ class Trainer:
                 self.best_val_psnr = state.get('best_val_psnr', -np.inf)
                 self.reconstructor_func.load_state_dict(state['reconstructor_state'])
                 self.reconstructor_optimizer.load_state_dict(state['reconstructor_optimizer'])
+                if 'reconstructor_optimizer_low_lr' in state:
+                    self.reconstructor_optimizer_20.load_state_dict(
+                        state['reconstructor_optimizer_low_lr']
+                    )
                 print('Saved ckpt is loaded successfully')
             except:
                 self.epoch = 0
@@ -280,8 +288,10 @@ class Trainer:
             if e % 10 == 0 or e == self.max_epoch - 1:
                 state = {
                     'epoch': e,
+                    'best_val_psnr': self.best_val_psnr,
                     'reconstructor_state': self.reconstructor_func.state_dict(),
                     'reconstructor_optimizer': self.reconstructor_optimizer.state_dict(),
+                    'reconstructor_optimizer_low_lr': self.reconstructor_optimizer_20.state_dict(),
                 }
                 self.save_checkpoint(e, state, num_iter)
 
@@ -328,12 +338,12 @@ class Trainer:
         return metrics
 
     def save_checkpoint(self, num_epoch, state, num_iter):
-        save_path = os.path.join(
-            self.model_dir,
-            f"epoch_{num_epoch:03d}_iter_{num_iter:06d}.pth.tar"
-        )
+        save_path = os.path.join(self.model_dir, 'latest.pth.tar')
         torch.save(state, save_path)
-        print(f"Save model after {num_epoch}-th epoch: {save_path}")
+        print(
+            f"Updated latest checkpoint after epoch {num_epoch} "
+            f"(iter {num_iter}): {save_path}"
+        )
 
     # def calculate_metric(self, pred, gt):
     #     assert len(pred.shape) == 4 and pred.shape == gt.shape
