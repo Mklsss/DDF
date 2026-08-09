@@ -1,0 +1,43 @@
+{
+  "analysis_scope": "paired image-slice-level comparisons on one held-out patient",
+  "sample_count": 200,
+  "base_metrics": "/autodl-fs/data/PAPER2/FH/code/results/statistical_significance_original_dudotrans/per_slice_metrics.csv",
+  "base_metrics_sha256": "78f0a4f68e6c587cb10cf89cbe7add05b77b50c8b2bd9178b2893bc7fab0991a",
+  "dudotrans_protocol": "fixed 200-slice evaluation; retrained reproduction checkpoints for S=4 and S=8; unchanged original checkpoint for S=12; native 512x512 preprocessing",
+  "dudotrans": {
+    "4": {
+      "views": 90,
+      "metrics_csv": "/autodl-fs/data/PAPER2/FH/code/results/statistical_significance_dudotrans_updated/dudotrans_S4_view090.csv",
+      "metrics_csv_sha256": "6ef4ce90da67e7ef8545cc6e409735f67dd7b6ab2f38da972e1a755d474bbe47",
+      "checkpoint": "/autodl-fs/data/PAPER2/FH/dudotrans_autodl/results_paper_S4/models/view_090/best_val_psnr.pth.tar",
+      "checkpoint_size_bytes": 281655560,
+      "checkpoint_sha256": "c4062986a06b972c133f685f3cc4c75d984f5f0b30f18913aa0f09e05717581a",
+      "native_image_size": 512
+    },
+    "8": {
+      "views": 45,
+      "metrics_csv": "/autodl-fs/data/PAPER2/FH/code/results/statistical_significance_dudotrans_updated/dudotrans_S8_view045.csv",
+      "metrics_csv_sha256": "00bfac0e323fa7b7bc5555c5a207ead3ece906943d21924fb5b2e9c84c5df0cf",
+      "checkpoint": "/autodl-fs/data/PAPER2/FH/dudotrans_autodl/results_paper_S8/models/view_045/best_val_psnr.pth.tar",
+      "checkpoint_size_bytes": 281655560,
+      "checkpoint_sha256": "c2033fa0f26e6132fa292b364e10fb5a8f995e0054107d5196d376d1ed8a3299",
+      "native_image_size": 512
+    },
+    "12": {
+      "views": 30,
+      "metrics_csv": "/autodl-fs/data/PAPER2/FH/code/results/statistical_significance_dudotrans_updated/dudotrans_S12_view030.csv",
+      "metrics_csv_sha256": "a430f453c131444088de99a13e9a52f9cc14caa8284be22089a66e13e7d24c11",
+      "checkpoint": "/autodl-fs/data/PAPER2/FH/dudotrans_autodl/results/models/view_030/epoch_019_iter_001799.pth.tar",
+      "checkpoint_size_bytes": 276538346,
+      "checkpoint_sha256": "70f42634c769c26cee7cf0258306f3b0ef3640495118f93777248ab479ee852c",
+      "native_image_size": 512
+    }
+  },
+  "unavailable_checkpoints": {
+    "2": "pending matched 180-view retraining; no slice-level result reported"
+  },
+  "wilcoxon": "two-sided paired Wilcoxon signed-rank test",
+  "multiplicity": "Holm correction within each sparse-factor/metric family",
+  "confidence_interval": "paired percentile bootstrap of mean difference, 10000 resamples",
+  "seed": 2026
+}

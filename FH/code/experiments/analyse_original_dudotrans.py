@@ -1,4 +1,4 @@
-"""Merge native DuDoTrans checkpoint evaluations with the unified DDF results.
+"""Merge DuDoTrans checkpoint evaluations with the unified DDF results.
 
 The script does not train or alter a checkpoint.  It imports the per-slice
 metrics written by ``dudotrans_autodl/test_dudotrans.py``, pairs them with the
@@ -164,6 +164,17 @@ def main():
     parser.add_argument("--output_dir", required=True)
     parser.add_argument("--bootstrap_repeats", type=int, default=10000)
     parser.add_argument("--seed", type=int, default=2026)
+    parser.add_argument(
+        "--dudotrans_protocol",
+        default="original checkpoint, native view count, native 512x512 preprocessing",
+    )
+    parser.add_argument(
+        "--unavailable_checkpoint",
+        action="append",
+        default=[],
+        metavar="FACTOR:REASON",
+        help="Document an unavailable factor without inventing per-slice statistics.",
+    )
     args = parser.parse_args()
 
     base_path = Path(args.base_metrics).resolve()
@@ -223,17 +234,24 @@ def main():
     write_csv(output_dir / "per_slice_metrics.csv", rows)
     write_csv(output_dir / "method_means.csv", means)
     write_csv(output_dir / "paired_significance.csv", paired)
+    unavailable = {}
+    for spec in args.unavailable_checkpoint:
+        factor, reason = spec.split(":", 1)
+        unavailable[str(int(factor))] = reason
+    if not unavailable and set(dudo_metadata) == {"4", "12"}:
+        unavailable = {
+            "2": "the local 120-view checkpoint is truncated and cannot be loaded",
+            "8": "the local 60-view checkpoint is truncated and cannot be loaded",
+        }
+
     metadata = {
         "analysis_scope": "paired image-slice-level comparisons on one held-out patient",
         "sample_count": 200,
         "base_metrics": str(base_path),
         "base_metrics_sha256": sha256(base_path),
-        "dudotrans_protocol": "original checkpoint, native view count, native 512x512 preprocessing",
+        "dudotrans_protocol": args.dudotrans_protocol,
         "dudotrans": dudo_metadata,
-        "unavailable_original_checkpoints": {
-            "2": "the local 120-view checkpoint is truncated and cannot be loaded",
-            "8": "the local 60-view checkpoint is truncated and cannot be loaded",
-        },
+        "unavailable_checkpoints": unavailable,
         "wilcoxon": "two-sided paired Wilcoxon signed-rank test",
         "multiplicity": "Holm correction within each sparse-factor/metric family",
         "confidence_interval": f"paired percentile bootstrap of mean difference, {args.bootstrap_repeats} resamples",

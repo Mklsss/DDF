@@ -13,6 +13,8 @@ FH/code/weights/*
 FH/code/results/*
 !FH/code/results/statistical_significance_original_dudotrans/
 !FH/code/results/statistical_significance_original_dudotrans/**
+!FH/code/results/statistical_significance_dudotrans_updated/
+!FH/code/results/statistical_significance_dudotrans_updated/**
 FH/code/fig/
 FH/code/logs/
 FH/code/swanlog/
