@@ -1,10 +1,19 @@
 {
   "analysis_scope": "paired image-slice-level comparisons on one held-out patient",
   "sample_count": 200,
-  "base_metrics": "/autodl-fs/data/PAPER2/FH/code/results/statistical_significance_original_dudotrans/per_slice_metrics.csv",
-  "base_metrics_sha256": "78f0a4f68e6c587cb10cf89cbe7add05b77b50c8b2bd9178b2893bc7fab0991a",
-  "dudotrans_protocol": "fixed 200-slice evaluation; retrained reproduction checkpoints for S=4 and S=8; unchanged original checkpoint for S=12; native 512x512 preprocessing",
+  "base_metrics": "/autodl-fs/data/PAPER2/FH/code/results/statistical_significance_dudotrans_updated/per_slice_metrics.csv",
+  "base_metrics_sha256": "38cb548f6e3f69d35379f08a6271cbbd711e3aa73d1ef4bac510573a201e247a",
+  "dudotrans_protocol": "matched view counts; S=2/4/8 validation-selected reproductions; S=12 unchanged original checkpoint; native 512x512 preprocessing",
   "dudotrans": {
+    "2": {
+      "views": 180,
+      "metrics_csv": "/autodl-fs/data/PAPER2/FH/code/results/statistical_significance_dudotrans_updated/dudotrans_S2_view180.csv",
+      "metrics_csv_sha256": "563e503e8ab94da326e1140d1fdbc42328d88aa7f24adcb602c4d78b7313953f",
+      "checkpoint": "/autodl-fs/data/PAPER2/FH/dudotrans_autodl/results_paper_S2/final/best_epoch042_val37.532170.pth.tar",
+      "checkpoint_size_bytes": 276516338,
+      "checkpoint_sha256": "9c311b07efa920b21981367343ac9bb79e52e0bc23b537b9290223372f456ac2",
+      "native_image_size": 512
+    },
     "4": {
       "views": 90,
       "metrics_csv": "/autodl-fs/data/PAPER2/FH/code/results/statistical_significance_dudotrans_updated/dudotrans_S4_view090.csv",
@@ -33,9 +42,7 @@
       "native_image_size": 512
     }
   },
-  "unavailable_checkpoints": {
-    "2": "pending matched 180-view retraining; no slice-level result reported"
-  },
+  "unavailable_checkpoints": {},
   "wilcoxon": "two-sided paired Wilcoxon signed-rank test",
   "multiplicity": "Holm correction within each sparse-factor/metric family",
   "confidence_interval": "paired percentile bootstrap of mean difference, 10000 resamples",
