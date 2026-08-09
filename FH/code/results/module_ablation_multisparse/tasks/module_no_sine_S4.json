@@ -1,0 +1,10 @@
+{
+  "task": "module_no_sine_S4",
+  "sparse_factor": 4,
+  "best_epoch": 94,
+  "best_val_psnr": 29.133362433210536,
+  "test_psnr": 29.244174375534058,
+  "test_ssim": 0.8150975492596626,
+  "test_slices": 200,
+  "checkpoint": "/root/autodl-fs/PAPER2/FH/code/weights/reviewer21_checkpoint_fixed_v3/module_no_sine_S4.pth.tar"
+}

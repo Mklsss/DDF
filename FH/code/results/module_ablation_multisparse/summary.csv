@@ -1,0 +1,7 @@
+﻿"task","sparse_factor","best_epoch","best_val_psnr","test_psnr","test_ssim","test_slices","checkpoint"
+"module_no_ct_S2","2","68","33.29930977","32.89175563","0.88584841","200","/root/autodl-fs/PAPER2/FH/code/weights/reviewer21_checkpoint_fixed_v3/module_no_ct_S2.pth.tar"
+"module_no_sine_S2","2","93","29.99728620","30.06188971","0.83576172","200","/root/autodl-fs/PAPER2/FH/code/weights/reviewer21_checkpoint_fixed_v3/module_no_sine_S2.pth.tar"
+"module_no_ct_S4","4","74","31.28833383","31.27914688","0.85053692","200","/root/autodl-fs/PAPER2/FH/code/weights/reviewer21_checkpoint_fixed_v3/module_no_ct_S4.pth.tar"
+"module_no_sine_S4","4","94","29.13336243","29.24417438","0.81509755","200","/root/autodl-fs/PAPER2/FH/code/weights/reviewer21_checkpoint_fixed_v3/module_no_sine_S4.pth.tar"
+"module_no_ct_S8","8","74","29.37609526","29.68473969","0.81325467","200","/root/autodl-fs/PAPER2/FH/code/weights/reviewer21_checkpoint_fixed_v3/module_no_ct_S8.pth.tar"
+"module_no_sine_S8","8","68","28.23934835","28.47345300","0.79481270","200","/root/autodl-fs/PAPER2/FH/code/weights/reviewer21_checkpoint_fixed_v3/module_no_sine_S8.pth.tar"

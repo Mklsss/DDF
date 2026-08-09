@@ -1,0 +1,10 @@
+{
+  "task": "module_no_ct_S8",
+  "sparse_factor": 8,
+  "best_epoch": 74,
+  "best_val_psnr": 29.37609525936753,
+  "test_psnr": 29.684739694595336,
+  "test_ssim": 0.8132546681165695,
+  "test_slices": 200,
+  "checkpoint": "/root/autodl-fs/PAPER2/FH/code/weights/reviewer21_checkpoint_fixed_v3/module_no_ct_S8.pth.tar"
+}
