@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -21,6 +22,18 @@ from pcnn import ResUNetSino
 from pswin import SwinIRSino
 from icnn import REDCNN
 from FHinner.tnt_v1.restormor import Restormer
+
+
+def atomic_torch_save(payload, checkpoint):
+    checkpoint = Path(checkpoint)
+    checkpoint.parent.mkdir(parents=True, exist_ok=True)
+    temporary = checkpoint.with_name(f".{checkpoint.name}.tmp")
+    try:
+        torch.save(payload, temporary)
+        os.replace(temporary, checkpoint)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
 
 
 def build_restormer(config):
@@ -147,7 +160,7 @@ def train_redcnn_warmstart(student, teacher, train_loader, *, device, epochs, le
         print(f"epoch={epoch} REDCNN-warmstart distill_mse={mean_loss:.8f}", flush=True)
         if mean_loss < best_loss:
             best_loss = mean_loss
-            torch.save(
+            atomic_torch_save(
                 {"redcnn": student.state_dict(), "distill_mse": best_loss, "teacher": "original-ddf-NAFNet"},
                 checkpoint,
             )
@@ -380,7 +393,7 @@ def main():
                 run.log(metrics, step=epoch)
             if psnr > best:
                 best = psnr
-                torch.save(
+                atomic_torch_save(
                     {
                         "model": model.state_dict(), "optimizer": optimizer.state_dict(),
                         "scheduler": scheduler.state_dict(), "epoch": epoch, "best_psnr": best,

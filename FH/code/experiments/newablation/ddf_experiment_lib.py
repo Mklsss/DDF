@@ -157,7 +157,14 @@ class FbpLayer(nn.Module):
         sparse_shape = (65536, 128520)
         sparse_indices = torch.tensor(indice.transpose())
         sparse_values = torch.tensor(data)
-        self.register_buffer("A_Matrix", torch.sparse_coo_tensor(sparse_indices, sparse_values, sparse_shape).coalesce())
+        # Recreate the fixed operator from disk instead of serializing it into
+        # every checkpoint.  Sparse operator persistence produced very large
+        # checkpoints that fail PyTorch's sparse-tensor load validation.
+        self.register_buffer(
+            "A_Matrix",
+            torch.sparse_coo_tensor(sparse_indices, sparse_values, sparse_shape).coalesce(),
+            persistent=False,
+        )
         self.out_shape = (256, 256)
         fbp_filter_weight = torch.tensor(raw_matrix["filt"].astype("float32"))
         self.fbp_filter = nn.Conv2d(1, 1, kernel_size=(713, 1), stride=(1, 1), padding="same")
@@ -182,7 +189,7 @@ class ForwardProjectionLayer(nn.Module):
         fp_data = np.load(data_path)
         sparse_shape = (128520, 65536)
         fp_matrix = torch.sparse_coo_tensor(torch.tensor(fp_index), torch.tensor(fp_data), sparse_shape).coalesce()
-        self.register_buffer("A", fp_matrix)
+        self.register_buffer("A", fp_matrix, persistent=False)
 
     def forward(self, image):
         batch_size, _, _, _ = image.shape

@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -60,6 +61,18 @@ def checkpoint_model_state(payload):
     if isinstance(payload, dict) and "model" in payload:
         return payload["model"]
     return payload
+
+
+def atomic_torch_save(payload, checkpoint):
+    """Write a complete checkpoint before replacing the previous best file."""
+    checkpoint = Path(checkpoint)
+    temporary = checkpoint.with_name(f".{checkpoint.name}.tmp")
+    try:
+        torch.save(payload, temporary)
+        os.replace(temporary, checkpoint)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
 
 
 def parse_args():
@@ -203,7 +216,7 @@ def main():
                 run.log(metrics, step=epoch)
             if val_psnr > best_psnr:
                 best_psnr = val_psnr
-                torch.save({
+                atomic_torch_save({
                     "model": model.state_dict(),
                     "optimizer": optimizer.state_dict(),
                     "scheduler": scheduler.state_dict(),
