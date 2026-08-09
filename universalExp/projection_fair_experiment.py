@@ -163,6 +163,10 @@ def main():
     parser.add_argument("--original_checkpoint", default="/autodl-fs/data/FH/code/weights/DDF_c12_best.pth")
     parser.add_argument("--checkpoint", default=None, help="Replacement checkpoint; defaults under checkpoints/fair_protocol")
     parser.add_argument("--batch_size", type=int, default=3)
+    parser.add_argument(
+        "--gradient_accumulation_steps", type=int, default=1,
+        help="Accumulate this many micro-batches before each optimizer step.",
+    )
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--learning_rate", type=float, default=1e-4)
     parser.add_argument("--resume_checkpoint", default=None, help="Resume model/optimizer/scheduler state from this checkpoint")
@@ -188,6 +192,8 @@ def main():
     parser.add_argument("--swanlab_run_name", default=None)
     parser.add_argument("--swanlab_mode", choices=("cloud", "local", "offline"), default="cloud")
     args = parser.parse_args()
+    if args.gradient_accumulation_steps < 1:
+        raise ValueError("--gradient_accumulation_steps must be at least 1")
 
     config = json.loads(Path(args.config).read_text(encoding="utf-8"))
     if args.train_data:
@@ -207,6 +213,9 @@ def main():
             "backbone": args.backbone,
             "sparse_factor": args.sparse_factor,
             "epochs": args.epochs,
+            "micro_batch_size": args.batch_size,
+            "gradient_accumulation_steps": args.gradient_accumulation_steps,
+            "effective_batch_size": args.batch_size * args.gradient_accumulation_steps,
             "train_count": args.train_count,
             "validation_count": args.val_count,
             "checkpoint": str(checkpoint),
@@ -330,6 +339,9 @@ def main():
             config={"backbone": args.backbone, "sparse_factor": args.sparse_factor,
                     "protocol": "original-ddf-single-replacement-frozen-shared",
                     "train_count": args.train_count, "validation_count": args.val_count,
+                    "micro_batch_size": args.batch_size,
+                    "gradient_accumulation_steps": args.gradient_accumulation_steps,
+                    "effective_batch_size": args.batch_size * args.gradient_accumulation_steps,
                     "seed": args.seed, **config},
             mode=args.swanlab_mode,
         )
@@ -337,14 +349,22 @@ def main():
         for epoch in range(start_epoch + 1, args.epochs + 1):
             model.train()
             loss_sum = 0.0
-            for sino, target in tqdm(train_loader, desc=f"fair {args.backbone} {epoch}/{args.epochs}"):
-                optimizer.zero_grad(set_to_none=True)
+            optimizer.zero_grad(set_to_none=True)
+            accumulation_steps = args.gradient_accumulation_steps
+            loader_length = len(train_loader)
+            for batch_index, (sino, target) in enumerate(
+                tqdm(train_loader, desc=f"fair {args.backbone} {epoch}/{args.epochs}")
+            ):
                 prediction, _ = model(sino.to(device, dtype=torch.float32))
                 loss = F.mse_loss(prediction, target.to(device, dtype=torch.float32))
                 if not torch.isfinite(loss):
                     raise RuntimeError(f"non-finite loss at epoch {epoch}: {loss.item()}")
-                loss.backward()
-                optimizer.step()
+                group_start = (batch_index // accumulation_steps) * accumulation_steps
+                group_size = min(accumulation_steps, loader_length - group_start)
+                (loss / group_size).backward()
+                if (batch_index + 1) % accumulation_steps == 0 or batch_index + 1 == loader_length:
+                    optimizer.step()
+                    optimizer.zero_grad(set_to_none=True)
                 loss_sum += loss.detach().item()
             psnr, ssim = evaluate_model(model, val_loader, device)
             metrics = {

@@ -93,8 +93,14 @@ run_backbone() {
   local checkpoint="$ROOT/universalExp/checkpoints/$RUN_TAG/$TASK_ID.pth.tar"
   local result="$ROOT/universalExp/results/$RUN_TAG/$TASK_ID.json"
   local learning_rate="1e-4"
+  local micro_batch_size="$BATCH_SIZE"
+  local accumulation_steps="1"
   local extra=()
-  [[ "$backbone" == "irestor" ]] && learning_rate="1e-5"
+  if [[ "$backbone" == "irestor" ]]; then
+    learning_rate="1e-5"
+    micro_batch_size="1"
+    accumulation_steps="$BATCH_SIZE"
+  fi
   if [[ "$backbone" == "icnn" || "$backbone" == "mixed" ]]; then
     extra+=(
       --auto_warmstart
@@ -119,7 +125,8 @@ run_backbone() {
     --train_count "$TRAIN_COUNT" \
     --val_count "$VAL_COUNT" \
     --seed "$SEED" \
-    --batch_size "$BATCH_SIZE" \
+    --batch_size "$micro_batch_size" \
+    --gradient_accumulation_steps "$accumulation_steps" \
     --epochs "$EPOCHS" \
     --learning_rate "$learning_rate" \
     --swanlab \
