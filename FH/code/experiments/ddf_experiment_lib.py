@@ -79,12 +79,20 @@ class SinogramCTDataset(Dataset):
 
 
 def reshape_sparse_channels(sparse_channels):
+    """Restore phase-grouped sparse views to the original angular order.
+
+    This is exactly equivalent to the legacy DDP_run_c*.py implementation,
+    which concatenates phase channels along the detector dimension and then
+    reshapes.  A direct concatenation along the angle dimension is incorrect:
+    for S=2 it produces [0, 2, ..., 358, 1, 3, ..., 359] instead of the
+    natural [0, 1, 2, ..., 359] order expected by FBP and ViewTrans.
+    """
     batch_size, channels, angle_count, sensor_count = sparse_channels.shape
-    reshaped_sinogram = sparse_channels[:, 0, :, :]
-    for channel_index in range(channels - 1):
-        next_channel = sparse_channels[:, channel_index + 1, :, :]
-        reshaped_sinogram = torch.cat((reshaped_sinogram, next_channel), dim=1)
-    return torch.reshape(reshaped_sinogram, (batch_size, angle_count * channels, sensor_count))
+    return (
+        sparse_channels.permute(0, 2, 1, 3)
+        .contiguous()
+        .reshape(batch_size, angle_count * channels, sensor_count)
+    )
 
 
 def interpolate_sparse_views(full_sinogram, sparse_factor):

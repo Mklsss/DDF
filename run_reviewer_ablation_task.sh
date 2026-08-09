@@ -19,7 +19,8 @@ BATCH_SIZE="${BATCH_SIZE:-3}"
 TRAIN_COUNT="${TRAIN_COUNT:-1600}"
 VAL_COUNT="${VAL_COUNT:-200}"
 SEED="${SEED:-2026}"
-PROJECT="${SWANLAB_PROJECT:-DDF-reviewer-ablation-2026}"
+RUN_TAG="${RUN_TAG:-reviewer21_corrected_v2}"
+PROJECT="${SWANLAB_PROJECT:-DDF-reviewer-ablation-corrected-v2}"
 RESUME="${RESUME:-0}"
 DRY_RUN="${DRY_RUN:-0}"
 CLEAR_NETWORK_PROXY="${CLEAR_NETWORK_PROXY:-1}"
@@ -52,12 +53,13 @@ fi
 
 effective_proxies="$($PYTHON_BIN -c 'import requests; print(requests.utils.get_environ_proxies("https://api.swanlab.cn"))')"
 echo "[setup] SwanLab effective proxies: $effective_proxies" >&2
+"$PYTHON_BIN" "$ROOT/FH/code/experiments/verify_sparse_angle_order.py"
 
 run_module() {
   local variant="$1"
   local factor="$2"
-  local checkpoint="$ROOT/FH/code/weights/reviewer21/$TASK_ID.pth.tar"
-  local result="$ROOT/FH/code/results/reviewer21/$TASK_ID.json"
+  local checkpoint="$ROOT/FH/code/weights/$RUN_TAG/$TASK_ID.pth.tar"
+  local result="$ROOT/FH/code/results/$RUN_TAG/$TASK_ID.json"
   local extra=()
   [[ "$RESUME" == "1" ]] && extra+=(--resume)
   [[ "$DRY_RUN" == "1" ]] && extra+=(--dry_run)
@@ -79,7 +81,7 @@ run_module() {
     --seed "$SEED" \
     --swanlab \
     --swanlab_project "$PROJECT" \
-    --swanlab_run_name "$TASK_ID" \
+    --swanlab_run_name "${TASK_ID}_corrected_v2" \
     "${extra[@]}"
 }
 
@@ -88,15 +90,15 @@ run_backbone() {
   local factor="$2"
   local config="$ROOT/universalExp/configs/${backbone}_default.json"
   local original="$ROOT/FH/code/weights/DDF_c${factor}_best.pth"
-  local checkpoint="$ROOT/universalExp/checkpoints/reviewer21/$TASK_ID.pth.tar"
-  local result="$ROOT/universalExp/results/reviewer21/$TASK_ID.json"
+  local checkpoint="$ROOT/universalExp/checkpoints/$RUN_TAG/$TASK_ID.pth.tar"
+  local result="$ROOT/universalExp/results/$RUN_TAG/$TASK_ID.json"
   local learning_rate="1e-4"
   local extra=()
   [[ "$backbone" == "irestor" ]] && learning_rate="1e-5"
   if [[ "$backbone" == "icnn" || "$backbone" == "mixed" ]]; then
     extra+=(
       --auto_warmstart
-      --warmstart_checkpoint "$ROOT/universalExp/checkpoints/reviewer21/warmstart/${backbone}_S${factor}.pth.tar"
+      --warmstart_checkpoint "$ROOT/universalExp/checkpoints/$RUN_TAG/warmstart/${backbone}_S${factor}.pth.tar"
     )
   fi
   if [[ "$RESUME" == "1" ]]; then
@@ -122,7 +124,7 @@ run_backbone() {
     --learning_rate "$learning_rate" \
     --swanlab \
     --swanlab_project "$PROJECT" \
-    --swanlab_run_name "$TASK_ID" \
+    --swanlab_run_name "${TASK_ID}_corrected_v2" \
     "${extra[@]}"
 }
 
