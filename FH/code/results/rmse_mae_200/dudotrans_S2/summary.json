@@ -1,0 +1,16 @@
+[
+  {
+    "view": 180,
+    "ckpt": "results_paper_S2/final/best_epoch042_val37.532170.pth.tar",
+    "num_samples": 200,
+    "pred_psnr": 37.55442718762934,
+    "pred_ssim": 0.9329662391998896,
+    "pred_rmse": 0.013293138607405126,
+    "pred_mae": 0.009359130971133708,
+    "fbp_psnr": 16.169550343300084,
+    "fbp_ssim": 0.32628635474521445,
+    "fbp_rmse": 0.15596768721938134,
+    "fbp_mae": 0.12680960353463888,
+    "avg_infer_time_sec": 0.6464234256744384
+  }
+]

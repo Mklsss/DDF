@@ -121,6 +121,7 @@ def calc_metrics(pred, gt):
             x = np.nan_to_num(pred_np[b, c], nan=0.0, posinf=1.0, neginf=0.0)
             y = np.nan_to_num(gt_np[b, c], nan=0.0, posinf=1.0, neginf=0.0)
             rmse = float(np.sqrt(np.mean((x - y) ** 2)))
+            mae = float(np.mean(np.abs(x - y)))
             rows.append(
                 {
                     "psnr": float(peak_signal_noise_ratio(y, x, data_range=1.0)),
@@ -135,6 +136,7 @@ def calc_metrics(pred, gt):
                         )
                     ),
                     "rmse": rmse,
+                    "mae": mae,
                 }
             )
     return rows
@@ -142,11 +144,12 @@ def calc_metrics(pred, gt):
 
 def average_metrics(rows):
     if not rows:
-        return {"psnr": 0.0, "ssim": 0.0, "rmse": 0.0}
+        return {"psnr": 0.0, "ssim": 0.0, "rmse": 0.0, "mae": 0.0}
     return {
         "psnr": float(np.mean([r["psnr"] for r in rows])),
         "ssim": float(np.mean([r["ssim"] for r in rows])),
         "rmse": float(np.mean([r["rmse"] for r in rows])),
+        "mae": float(np.mean([r["mae"] for r in rows])),
     }
 
 
@@ -271,9 +274,11 @@ def evaluate_view(args, views, ckpt_path, device):
                     "pred_psnr": pred_rows[local_i]["psnr"],
                     "pred_ssim": pred_rows[local_i]["ssim"],
                     "pred_rmse": pred_rows[local_i]["rmse"],
+                    "pred_mae": pred_rows[local_i]["mae"],
                     "fbp_psnr": fbp_rows[local_i]["psnr"],
                     "fbp_ssim": fbp_rows[local_i]["ssim"],
                     "fbp_rmse": fbp_rows[local_i]["rmse"],
+                    "fbp_mae": fbp_rows[local_i]["mae"],
                 }
                 per_slice_rows.append(row)
                 if sample_idx in vis_set:
@@ -303,9 +308,11 @@ def evaluate_view(args, views, ckpt_path, device):
         "pred_psnr": pred_avg["psnr"],
         "pred_ssim": pred_avg["ssim"],
         "pred_rmse": pred_avg["rmse"],
+        "pred_mae": pred_avg["mae"],
         "fbp_psnr": fbp_avg["psnr"],
         "fbp_ssim": fbp_avg["ssim"],
         "fbp_rmse": fbp_avg["rmse"],
+        "fbp_mae": fbp_avg["mae"],
         "avg_infer_time_sec": infer_time / max(1, seen),
         "per_slice": per_slice_rows,
     }
@@ -323,9 +330,11 @@ def write_outputs(out_dir, summaries):
         "pred_psnr",
         "pred_ssim",
         "pred_rmse",
+        "pred_mae",
         "fbp_psnr",
         "fbp_ssim",
         "fbp_rmse",
+        "fbp_mae",
         "avg_infer_time_sec",
         "ckpt",
     ]
@@ -341,9 +350,11 @@ def write_outputs(out_dir, summaries):
         "pred_psnr",
         "pred_ssim",
         "pred_rmse",
+        "pred_mae",
         "fbp_psnr",
         "fbp_ssim",
         "fbp_rmse",
+        "fbp_mae",
     ]
     with open(detail_csv, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=detail_fields)
@@ -377,8 +388,10 @@ def main():
     for item in summaries:
         print(
             "[RESULT] view={view:3d} n={num_samples} "
-            "DuDoTrans PSNR={pred_psnr:.2f} SSIM={pred_ssim:.4f} RMSE={pred_rmse:.4f} | "
-            "FBP PSNR={fbp_psnr:.2f} SSIM={fbp_ssim:.4f} RMSE={fbp_rmse:.4f}".format(**item)
+            "DuDoTrans PSNR={pred_psnr:.2f} SSIM={pred_ssim:.4f} "
+            "RMSE={pred_rmse:.4f} MAE={pred_mae:.4f} | "
+            "FBP PSNR={fbp_psnr:.2f} SSIM={fbp_ssim:.4f} "
+            "RMSE={fbp_rmse:.4f} MAE={fbp_mae:.4f}".format(**item)
         )
 
 

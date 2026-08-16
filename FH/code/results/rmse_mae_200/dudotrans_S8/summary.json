@@ -1,0 +1,16 @@
+[
+  {
+    "view": 45,
+    "ckpt": "results_paper_S8/models/view_045/best_val_psnr.pth.tar",
+    "num_samples": 200,
+    "pred_psnr": 32.40679833430388,
+    "pred_ssim": 0.8855000154462712,
+    "pred_rmse": 0.024054466653615235,
+    "pred_mae": 0.014974782667122781,
+    "fbp_psnr": 13.597677016912453,
+    "fbp_ssim": 0.1552352439262525,
+    "fbp_rmse": 0.20908164605498314,
+    "fbp_mae": 0.1639089746773243,
+    "avg_infer_time_sec": 0.25486467599868773
+  }
+]
