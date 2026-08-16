@@ -12,8 +12,10 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from tqdm.auto import tqdm
 
 from ddf_experiment_lib import load_config, reshape_interpolated_sinogram
+import run_quantitative_metrics as quantitative_metrics
 from run_quantitative_metrics import (
     DEFAULT_TEST_DATA,
     evaluate_cascade,
@@ -23,6 +25,27 @@ from run_quantitative_metrics import (
     finalize,
     find_checkpoint,
 )
+
+
+PROGRESS_DESCRIPTION = "evaluation"
+PLAIN_MAKE_BATCHES = quantitative_metrics.make_batches
+
+
+def tqdm_make_batches(dataset, batch_size, max_samples):
+    total_samples = len(dataset) if max_samples is None else min(len(dataset), int(max_samples))
+    total_batches = (total_samples + batch_size - 1) // batch_size
+    return tqdm(
+        PLAIN_MAKE_BATCHES(dataset, batch_size, max_samples),
+        total=total_batches,
+        desc=PROGRESS_DESCRIPTION,
+        unit="batch",
+        dynamic_ncols=True,
+    )
+
+
+# The reused evaluators look up make_batches in their defining module. Replacing
+# that iterator only adds display; it does not alter samples or metric values.
+quantitative_metrics.make_batches = tqdm_make_batches
 
 
 class ProjectionNoiseDataset(torch.utils.data.Dataset):
@@ -145,6 +168,8 @@ def main():
         )
 
         for method in methods:
+            global PROGRESS_DESCRIPTION
+            PROGRESS_DESCRIPTION = f"{name} | {method}"
             if method == "sparse_fbp":
                 checkpoint = ""
                 acc = evaluate_sparse_fbp(
