@@ -17,6 +17,8 @@ FH/code/results/*
 !FH/code/results/statistical_significance_dudotrans_updated/**
 !FH/code/results/module_ablation_multisparse/
 !FH/code/results/module_ablation_multisparse/**
+!FH/code/results/backbone_ablation_multisparse/
+!FH/code/results/backbone_ablation_multisparse/**
 FH/code/fig/
 FH/code/logs/
 FH/code/swanlog/
