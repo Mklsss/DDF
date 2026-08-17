@@ -19,6 +19,8 @@ FH/code/results/*
 !FH/code/results/module_ablation_multisparse/**
 !FH/code/results/backbone_ablation_multisparse/
 !FH/code/results/backbone_ablation_multisparse/**
+!FH/code/results/scheduler_r1_S12/
+!FH/code/results/scheduler_r1_S12/**
 FH/code/fig/
 FH/code/logs/
 FH/code/swanlog/

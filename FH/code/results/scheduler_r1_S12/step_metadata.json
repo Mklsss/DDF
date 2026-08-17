@@ -1,0 +1,39 @@
+{
+  "sparse_factor": 12,
+  "epochs": 100,
+  "batch_size": 3,
+  "val_batch_size": 2,
+  "device": "cuda:0",
+  "lr": 0.0001,
+  "step_size": 10,
+  "gamma": 0.33,
+  "scheduler": "step",
+  "cosine_t_max": 100,
+  "min_lr": 1e-08,
+  "plateau_factor": 0.33,
+  "plateau_patience": 5,
+  "plateau_threshold": 0.01,
+  "val_ratio": 0.1,
+  "train_count": 1600,
+  "val_count": 200,
+  "seed": 2026,
+  "initial_weights": "/root/autodl-fs/PAPER2/FH/code/weights/scheduler_r1_S12/shared_initial_seed2026.pth",
+  "output_best": "/root/autodl-fs/PAPER2/FH/code/weights/scheduler_r1_S12/step_best.pth",
+  "output_ckpt": "/root/autodl-fs/PAPER2/FH/code/weights/scheduler_r1_S12/step_ckpt.pth",
+  "history_csv": "/root/autodl-fs/PAPER2/FH/code/results/scheduler_r1_S12/step_history.csv",
+  "metadata_json": "/root/autodl-fs/PAPER2/FH/code/results/scheduler_r1_S12/step_metadata.json",
+  "resume": false,
+  "swanlab": true,
+  "project": "DDF-reviewer1-scheduler",
+  "train_samples": 1600,
+  "val_samples": 200,
+  "train_indices": [
+    0,
+    1599
+  ],
+  "val_indices": [
+    1600,
+    1799
+  ],
+  "device_name": "NVIDIA GeForce RTX 4090"
+}

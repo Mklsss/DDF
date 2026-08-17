@@ -1,0 +1,4 @@
+scheduler,epoch_budget,best_epoch,best_val_psnr,best_val_ssim,final_val_psnr,final_val_ssim,final_lr,psnr_change_last_10_epochs
+StepLR,100,98,28.459212,0.799188,28.459195,0.799188,4.64114844e-09,0.000148
+Cosine annealing,100,100,31.963448,0.869073,31.963448,0.869073,3.466951452e-08,0.031061
+ReduceLROnPlateau,100,99,32.246937,0.877524,32.237303,0.878987,0.0001,0.252031
