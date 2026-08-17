@@ -12,6 +12,7 @@ BATCH_SIZE="${BATCH_SIZE:-2}"
 MAX_SAMPLES="${MAX_SAMPLES:-}"
 PHOTON_COUNTS="${PHOTON_COUNTS:-1e5,1e4}"
 ELECTRONIC_SIGMAS="${ELECTRONIC_SIGMAS:-0}"
+MAX_LINE_INTEGRAL="${MAX_LINE_INTEGRAL:-5}"
 OUTPUT_CSV="${OUTPUT_CSV:-$ROOT/FH/code/results/noise_robustness/noise_robustness_S12.csv}"
 
 if [[ ! -x "$PYTHON_BIN" ]]; then
@@ -47,6 +48,7 @@ args=(
   --sparse_factor 12
   --photon_counts "$PHOTON_COUNTS"
   --electronic_sigmas "$ELECTRONIC_SIGMAS"
+  --max_line_integral "$MAX_LINE_INTEGRAL"
   --methods sparse_fbp,cascade,ddf
   --batch_size "$BATCH_SIZE"
   --device "$DEVICE"

@@ -57,6 +57,7 @@ class ProjectionNoiseDataset(torch.utils.data.Dataset):
         sparse_factor,
         photon_count=None,
         electronic_sigma=0.0,
+        max_line_integral=5.0,
         seed=2026,
     ):
         with np.load(npz_path) as data:
@@ -68,6 +69,7 @@ class ProjectionNoiseDataset(torch.utils.data.Dataset):
                 full_sinogram,
                 photon_count=float(photon_count),
                 electronic_sigma=float(electronic_sigma),
+                max_line_integral=float(max_line_integral),
                 seed=int(seed),
             )
         elif electronic_sigma != 0:
@@ -82,7 +84,9 @@ class ProjectionNoiseDataset(torch.utils.data.Dataset):
         return self.sinogram_input[index], self.ct_label[index]
 
 
-def add_measurement_noise(line_integrals, photon_count, electronic_sigma, seed):
+def add_measurement_noise(
+    line_integrals, photon_count, electronic_sigma, max_line_integral, seed
+):
     """Apply Poisson quantum noise and optional additive electronic noise.
 
     For a noiseless line integral p, detected counts follow
@@ -94,10 +98,20 @@ def add_measurement_noise(line_integrals, photon_count, electronic_sigma, seed):
         raise ValueError("photon_count must be positive")
     if electronic_sigma < 0:
         raise ValueError("electronic_sigma must be non-negative")
+    if max_line_integral <= 0:
+        raise ValueError("max_line_integral must be positive")
 
     generator = torch.Generator(device="cpu")
     generator.manual_seed(seed)
-    attenuation = line_integrals.clamp_min(0.0)
+    stored_max = float(line_integrals.max().item())
+    if stored_max <= 0:
+        raise ValueError("the sinogram has no positive line integrals")
+    projection_scale = max_line_integral / stored_max
+    attenuation = line_integrals.clamp_min(0.0) * projection_scale
+    print(
+        f"[noise calibration] stored_max={stored_max:.6f}, "
+        f"physical_max={max_line_integral:.6f}, scale={projection_scale:.8f}"
+    )
     expected_counts = photon_count * torch.exp(-attenuation)
     measured_counts = torch.poisson(expected_counts, generator=generator)
     if electronic_sigma > 0:
@@ -105,7 +119,7 @@ def add_measurement_noise(line_integrals, photon_count, electronic_sigma, seed):
             torch.randn(measured_counts.shape, generator=generator) * electronic_sigma
         )
     measured_counts.clamp_min_(1.0)
-    return -torch.log(measured_counts / photon_count)
+    return -torch.log(measured_counts / photon_count) / projection_scale
 
 
 def parse_float_list(value):
@@ -136,6 +150,12 @@ def main():
     parser.add_argument("--batch_size", type=int, default=2)
     parser.add_argument("--max_samples", type=int, default=None)
     parser.add_argument("--seed", type=int, default=2026)
+    parser.add_argument(
+        "--max_line_integral",
+        type=float,
+        default=5.0,
+        help="Map the maximum stored numerical projection to this physical line integral before noise simulation.",
+    )
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--config", default=None)
     parser.add_argument("--output_csv", default="results/noise_robustness_S12.csv")
@@ -164,6 +184,7 @@ def main():
             sparse_factor=args.sparse_factor,
             photon_count=photon_count,
             electronic_sigma=electronic_sigma,
+            max_line_integral=args.max_line_integral,
             seed=args.seed + condition_index,
         )
 
@@ -223,6 +244,7 @@ def main():
                     "condition": name,
                     "photon_count": "" if photon_count is None else photon_count,
                     "electronic_sigma": electronic_sigma,
+                    "max_line_integral": args.max_line_integral,
                     "seed": args.seed + condition_index,
                 }
             )
@@ -243,6 +265,7 @@ def main():
         "condition",
         "photon_count",
         "electronic_sigma",
+        "max_line_integral",
         "seed",
         "method",
         "sparse_factor",
