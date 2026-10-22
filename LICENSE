@@ -1,0 +1,71 @@
+DDF Noncommercial Research License 1.0
+
+Copyright (c) 2026 DDF authors and contributors.
+All rights reserved except as expressly granted below.
+
+1. Scope
+
+This license applies only to original DDF source code and documentation whose
+copyright holders make it available under these terms (the "Material"). Each
+copyright holder grants rights only to the extent that they own or control them.
+Third-party code, datasets, medical images, projection assets, pretrained weights,
+publications, trademarks, and other separately licensed material are excluded
+unless their applicable copyright holders expressly provide otherwise. Existing
+third-party licenses and copyright notices remain in effect.
+
+2. Permitted noncommercial research uses
+
+Subject to these terms, you may use, reproduce, modify, and distribute the
+Material and your modifications solely for noncommercial scientific research,
+academic study, teaching, and reproduction or evaluation of research results.
+These permissions do not transfer ownership of the Material.
+
+A permitted purpose must not be directed toward commercial advantage, monetary
+compensation, commercial product or service development, or business operations.
+An educational or nonprofit affiliation, research funding arrangement, or the
+publication of a paper does not by itself exempt an otherwise commercial use.
+
+3. Commercial uses require separate permission
+
+No commercial rights are granted by this license. Without separate prior written
+permission from the applicable copyright holders, you may not use the Material
+or modifications of it for commercial research or development, internal business
+operations, commercial products, paid consulting, paid hosted services, or other
+commercial exploitation. The restrictions apply whether or not the Material
+itself is sold or distributed.
+
+4. Conditions on copying, modification, and distribution
+
+You must retain this license and all applicable copyright and attribution
+notices in copies and substantial portions of the Material. You must clearly
+identify modifications and must not present a modified version as the authors'
+unmodified release or imply their endorsement.
+
+You may distribute the Material and modifications only for the purposes allowed
+by Section 2, with a copy of this license. Recipients receive rights to the
+original Material directly under this license. You may not grant recipients
+commercial rights to the original Material or remove its use restrictions.
+
+Please cite the associated DDF paper when reporting research that uses this work.
+
+5. Reserved rights and termination
+
+All rights not expressly granted are reserved. No trademark or patent license
+is granted. Nothing in this license restricts rights you have independently
+under applicable law or under a separate third-party license.
+
+Your permissions under this license terminate automatically if you violate its
+terms. Further use requires permission from the applicable copyright holders.
+
+6. Disclaimer
+
+THE MATERIAL IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. TO THE MAXIMUM EXTENT
+PERMITTED BY APPLICABLE LAW, THE AUTHORS AND COPYRIGHT HOLDERS SHALL NOT BE
+LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY ARISING FROM, OUT OF, OR IN
+CONNECTION WITH THE MATERIAL OR ITS USE.
+
+This is a custom research license with a noncommercial restriction, not an
+OSI-approved open-source license. For separate commercial permission, contact
+the repository maintainers through https://github.com/Mklsss/DDF/issues.
